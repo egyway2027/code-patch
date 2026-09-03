@@ -1,0 +1,20 @@
+{
+  "name": "Code Patcher",
+  "version": "20.0.0",
+  "release": "Core-First Full Merge",
+  "primary_contract": "understand -> plan -> patch -> verify -> secure -> impact-check -> atomic commit or rollback",
+  "languages": ["JavaScript", "TypeScript", "JSX", "TSX", "Python", "Java", "C", "C++", "Go"],
+  "ui_locales": 20,
+  "server_endpoints": ["/health", "/parse", "/plan", "/patch", "/impact", "/analyze-project", "/project", "/rollback"],
+  "core_files": ["src/patchEngine.js", "src/transactionEngine.js", "src/policyEngine.js", "src/symbolIndex.js", "src/impactAnalysis.js", "src/dataflow.js"],
+  "compiler_adapters": ["api/java-ast.java", "api/go-ast.go", "api/python-ast.py", "src/languageParsers.js"],
+  "browser_never_executes_source": true,
+  "taint_analysis_label": "heuristic",
+  "verification": {
+    "node_mjs_syntax_files_checked": 34,
+    "python_ast_tests": "PASS",
+    "cross_file_impact_tests": "PASS",
+    "language_adapter_tests": "PASS",
+    "npm_ci_and_vite_build": "NOT_RUN_SUCCESSFULLY_IN_CURRENT_OFFLINE_ENVIRONMENT"
+  }
+}

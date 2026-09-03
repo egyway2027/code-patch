@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/python-ast", "destination": "/api/python-ast.py" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

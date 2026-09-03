@@ -1,0 +1,37 @@
+{
+  "name": "code-patcher-tool",
+  "private": true,
+  "version": "23.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0",
+    "npm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node src/patchEngine.test.mjs && node src/codeAuditor.v6.test.mjs && node tests/v7_ast.test.js && node tests/v8_languages.test.mjs && node tests/v10_languages.test.mjs && python3 tests/python_ast_test.py && node tests/v11_deep_ast.test.mjs && node tests/v12_project.test.mjs && node tests/v15_core_smoke.test.mjs && node tests/v15_impact.test.mjs && node tests/v15_language_adapters.test.mjs && node tests/v20_core.test.mjs && node tests/v20_transaction.test.mjs && node tests/v21_transaction_filesystem.test.mjs && node tests/v21_regression.test.mjs && node tests/v21_untouched.test.mjs && node tests/v22_core_hardening.test.mjs && node tests/v15_server.test.mjs && node tests/v23_hardening.test.mjs",
+    "test:smoke": "node tests/v15_impact.test.mjs && node tests/v15_language_adapters.test.mjs",
+    "server": "node server/compilerServer.mjs",
+    "test:server": "node tests/v15_server.test.mjs && node tests/v23_hardening.test.mjs",
+    "test:v7": "node --test",
+    "test:python-ast": "python3 tests/python_ast_test.py",
+    "test:v8": "node --test tests/v8_languages.test.mjs",
+    "test:core": "node src/patchEngine.test.mjs && node tests/v20_core.test.mjs && node tests/v20_transaction.test.mjs",
+    "test:impact": "node tests/v15_impact.test.mjs",
+    "check": "node tools/v20_check.mjs",
+    "verify:core": "node tests/v22_core_hardening.test.mjs && node tests/v21_transaction_filesystem.test.mjs && node tests/v21_regression.test.mjs && node tests/v15_impact.test.mjs && node tests/v15_language_adapters.test.mjs && python3 tests/python_ast_test.py && node tests/v23_hardening.test.mjs",
+    "verify:static": "node --check src/patchEngine.js && node --check src/transactionEngine.js && node --check src/impactAnalysis.js && node --check src/symbolIndex.js && node --check server/transactionFilesystem.mjs && node --check server/compilerServer.mjs && npm run build --silent"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.29.8",
+    "lucide-react": "^0.344.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.1.6"
+  }
+}

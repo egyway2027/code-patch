@@ -1,0 +1,1 @@
+*{box-sizing:border-box}button,select,textarea,input{font:inherit}@media(max-width:700px){main{padding:10px!important}.grid{grid-template-columns:1fr!important}textarea{min-height:240px!important}}

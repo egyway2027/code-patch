@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { VERSION, parsePatchBlocks, analyzeAndApply, MATCH_MODES, validateCode, verifyTransaction } from '../src/patchEngine.js';
+assert.equal(VERSION,'23.0.0');
+const patch=`<<<<<<< SEARCH [PATCH: p]\nconst value = 1;\n=======\nconst value = 2;\n>>>>>>> REPLACE`;
+const parsed=parsePatchBlocks(patch); assert.equal(parsed.errors.length,0); assert.equal(parsed.blocks.length,1);
+const r=await analyzeAndApply('const value = 1;',parsed.blocks,{mode:MATCH_MODES.EXACT_UNIQUE});
+assert.equal(r.ok,true); assert.equal(r.code,'const value = 2;');
+assert.equal(verifyTransaction('const value = 1;',r.code,parsed.blocks,r.results,{mode:MATCH_MODES.EXACT_UNIQUE}).ok,true);
+assert.equal((await validateCode('function f(){ return 1; }','javascript','x.js')).ok,true);
+assert.equal((await validateCode('function f( {','javascript','x.js')).ok,false);
+console.log('V21 core tests: PASS');
