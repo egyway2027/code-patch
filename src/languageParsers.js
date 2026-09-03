@@ -7,8 +7,8 @@ import cp from "node:child_process";
 const MAX_SOURCE=5_000_000;
 const TEMP_ROOT=path.join(os.tmpdir(),"code-patcher-v11");
 const EXT=new Set([".java",".c",".h",".cc",".cpp",".cxx",".hpp",".hh",".hxx",".go"]);
-const JAVA_HELPER=path.join(path.dirname(new URL(import.meta.url).pathname),"..","api","java-ast.java");
-const GO_HELPER=path.join(path.dirname(new URL(import.meta.url).pathname),"..","api","go-ast.go");
+const JAVA_HELPER=path.join(path.dirname(new URL(import.meta.url).pathname),"..","server","lang-ast","java-ast.java");
+const GO_HELPER=path.join(path.dirname(new URL(import.meta.url).pathname),"..","server","lang-ast","go-ast.go");
 function exists(c){const r=cp.spawnSync(c,[c==="gofmt"?"-h":"--version"],{encoding:"utf8",timeout:5000,stdio:["ignore","pipe","pipe"]});return !r.error;}
 function temp(name,ext){fs.mkdirSync(TEMP_ROOT,{recursive:true,mode:0o700});const d=fs.mkdtempSync(path.join(TEMP_ROOT,"job-"));let b=path.basename(name||`source${ext}`).replace(/[^A-Za-z0-9_.-]/g,"_");if(!b.toLowerCase().endsWith(ext))b+=ext;return {dir:d,file:path.join(d,b)};}
 function clean(d){try{fs.rmSync(d,{recursive:true,force:true})}catch{}}
