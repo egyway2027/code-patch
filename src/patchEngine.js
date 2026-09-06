@@ -643,7 +643,7 @@ export async function fetchPythonAst(code, fileName = "file.py") {
 export async function validatePython(code, fileName = "file.py") {
   const result = await fetchPythonAst(code, fileName);
   if (result.unavailable) {
-    return validatePythonStructural(code);
+    return { ok: false, strength: "unavailable", unavailable: true, message: "Python AST service unavailable; validation refused (fail-closed)." };
   }
   if (result.ok === false) {
     const loc = result.line ? ` (سطر ${result.line}, عمود ${result.column || 1})` : "";
