@@ -85,7 +85,7 @@ self.onmessage = async (event) => {
 
     checkpoint();
     const diff = createDiff(source, decision.code);
-    self.postMessage({ id, version: VERSION, ok: true, committed: true,
+    self.postMessage({ id, version: VERSION, ok: true, prepared: true, committed: true,
       message: 'تم اجتياز Parse + Preflight + Apply + Verify + Replay + Validation + AST Validation + Code Audit + Integrity واعتماد النتيجة.',
       parsed, applied, code: decision.code, validation, audit, auditorVersion: AUDITOR_VERSION,
       verification: { ok: true, appliedCount: verification.appliedCount },
