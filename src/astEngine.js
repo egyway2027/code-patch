@@ -12,9 +12,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import cp from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { parseExtraLanguage as parseCompilerLanguage, compilerLanguageForFile } from "./languageParsers.js";
 
-const PY_AST = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "api", "python-ast.py");
+const PY_AST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "api", "python-ast.py");
 
 const JS_EXTS = new Set([".js",".mjs",".cjs",".jsx",".ts",".tsx"]);
 const PY_EXTS = new Set([".py"]);
