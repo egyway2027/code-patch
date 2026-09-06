@@ -189,7 +189,7 @@ export function auditCodeChange({ before, after, fileName = "source.txt", fileTy
   return {
     version: AUDITOR_VERSION,
     ok: blocking.length === 0,
-    decision: blocking.length ? "BLOCKED" : (counts.critical || counts.high) ? "WARNING" : "SAFE",
+    decision: blocking.length ? "BLOCKED" : (counts.critical || counts.high || counts.warning) ? "WARNING" : "SAFE",
     risk,
     file: { name: fileName, type: fileType },
     scanned, // false = this file type has no AST-based security scan (non-JS); absence of findings there is not a clean bill of health
