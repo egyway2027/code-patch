@@ -69,7 +69,7 @@ export async function prepareProjectTransaction(entries, { policy, mode, reviewA
   const staged = [], before = [];
   for (const entry of files) {
     before.push({ fileName:entry.fileName, content:entry.content, fileType:entry.fileType, filePath:entry.filePath || null });
-    const r = await prepareSingleFileTransaction(entry, { policy:p, mode });
+    const r = await prepareSingleFileTransaction({ ...entry, reviewApproved: reviewApproved || entry.reviewApproved }, { policy:p, mode });
     if (!r.ok) return { ...r, stage:staged, rolledBack:true };
     staged.push(r);
   }
@@ -82,4 +82,3 @@ export async function prepareProjectTransaction(entries, { policy, mode, reviewA
   const transactionId = await sha256(JSON.stringify({ schemaVersion:2, files:before.map(x=>x.fileName), plans:planSnapshot, planSetHash }));
   return { ok:true, prepared:true, committed:false, rolledBack:false, transactionId, planHash:await sha256(JSON.stringify({schemaVersion:2, planSnapshot, planSetHash})), planSnapshot, planSetHash, results:staged.map(x=>({ fileName:x.fileName, fileType:x.fileType, filePath:x.filePath, originalContent:x.source, code:x.code, validation:x.validation, audit:x.audit, intelligence:x.intelligence, securityPolicy:x.securityPolicy, integrity:x.integrity, verification:x.verification, diff:x.diff, originalHash:x.originalHash, resultHash:x.resultHash, planHash:x.planHash, planSnapshot:x.planSnapshot, committed:false })), impact, impactPolicy, policy:p, message:'Transaction prepared and verified; filesystem has not been modified.' };
 }
-
