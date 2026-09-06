@@ -1,7 +1,7 @@
 /** V23 cross-file impact analysis. Browser-safe, static-only, transitive dependency aware. */
 import { buildSymbolIndex, extractFileImports } from './symbolIndex.js';
 
-function normalizePath(p=''){return String(p).replace(/\\/g,'/').replace(/^\.\//,'').replace(/\/+/g,'/')}
+function normalizePath(p=''){return String(p).replace(/\\/g,'/').replace(/\/\.\//g,'/').replace(/^\.\//,'').replace(/\/+/g,'/')}
 function baseNoExt(p=''){return normalizePath(p).replace(/\.[^.\/]+$/,'')}
 function dir(p=''){const n=normalizePath(p),i=n.lastIndexOf('/');return i<0?'':n.slice(0,i)}
 function join(a,b){return normalizePath((a?a+'/':'')+b)}
