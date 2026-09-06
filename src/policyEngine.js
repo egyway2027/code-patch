@@ -1,6 +1,6 @@
 /** V23 centralized safety policy. Review findings never become silent commits. */
 export const DEFAULT_POLICY = Object.freeze({
-  security: Object.freeze({ critical:'block', high:'review', medium:'review', low:'info' }),
+  security: Object.freeze({ critical:'block', high:'review', medium:'review', warning:'review', low:'info' }),
   impact: Object.freeze({ breakingChanges:'block', warnings:'review', dependencyCycles:'review' }),
   validation: Object.freeze({ requireParse:true, requireIntegrity:true, requireReplay:true, requireReviewApproval:true }),
   transaction: Object.freeze({ atomic:true, maxFiles:500, rejectExternalMutation:true }),
@@ -8,7 +8,7 @@ export const DEFAULT_POLICY = Object.freeze({
 });
 
 const POLICY_KEYS = Object.freeze({
-  security:['critical','high','medium','low'],
+  security:['critical','high','medium','warning','low'],
   impact:['breakingChanges','warnings','dependencyCycles'],
   validation:['requireParse','requireIntegrity','requireReplay','requireReviewApproval'],
   transaction:['atomic','maxFiles','rejectExternalMutation'],
