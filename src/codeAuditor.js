@@ -65,7 +65,10 @@ function maskNonCode(source, language) {
   // Preserve newlines so reported locations stay stable.
   s = s.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, " "));
   s = s.replace(/\/\/[^\n\r]*/g, m => " ".repeat(m.length));
-  if (language === "python") s = s.replace(/(^|\n)\s*#[^\n\r]*/g, m => m.replace(/[^\n]/g, " "));
+  if (language === "python") {
+    s = s.replace(/(^|\n)\s*#[^\n\r]*/g, m => m.replace(/[^\n]/g, " "));
+    s = s.replace(/('''[\s\S]*?'''|"""[\s\S]*?""")/g, m => m.replace(/[^\n]/g, " "));
+  }
   // Mask common quoted strings; keep the quote-free structure and line count.
   s = s.replace(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/g, m => m.replace(/[^\n]/g, " "));
   return s;
