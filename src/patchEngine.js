@@ -182,7 +182,7 @@ function findAllExact(source, search) {
       if (idx === -1) break;
       hits.push(idx);
       if (hits.length > LIMITS.maxMatchesReported) break;
-      pos = idx + Math.max(1, search.length);
+      pos = idx + 1;
     }
     return hits.map(start => ({ start, end: start + search.length }));
   }
@@ -578,7 +578,7 @@ function validatePythonStructural(code) {
 }
 
 const PYTHON_AST_ENDPOINT = "/api/python-ast";
-const PY_AST = decodeURIComponent(new URL("../api/python-ast.py", import.meta.url).pathname);
+const PY_AST = decodeURIComponent(new URL("../api/python-ast.py", import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
 
 /**
  * Calls the real CPython `ast`-based service (api/python-ast.py). Parsing only — the
