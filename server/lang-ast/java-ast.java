@@ -9,7 +9,7 @@ public class JavaAst {
   static List<Map<String,Object>> imports = new ArrayList<>();
   static String json(Object o) {
     if (o == null) return "null";
-    if (o instanceof String) return "\"" + ((String)o).replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n").replace("\r","\\r") + "\"";
+    if (o instanceof String) return "\"" + ((String)o).replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n").replace("\r","\\r").replace("\t","\\t").replace("\b","\\b").replace("\f","\\f") + "\"";
     if (o instanceof Number || o instanceof Boolean) return o.toString();
     if (o instanceof List) { StringBuilder b=new StringBuilder("["); for(Object x:(List<?>)o){if(b.length()>1)b.append(',');b.append(json(x));} return b.append(']').toString(); }
     if (o instanceof Map) { StringBuilder b=new StringBuilder("{"); for(var e:((Map<?,?>)o).entrySet()){if(b.length()>1)b.append(',');b.append(json(e.getKey().toString())).append(':').append(json(e.getValue()));} return b.append('}').toString(); }
