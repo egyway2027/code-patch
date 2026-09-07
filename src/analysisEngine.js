@@ -12,7 +12,23 @@ export function buildDependencyGraph(files=[]){
  return {nodes,edges,cycles:findCycles(nodes,edges)}
 }
 function findCycles(nodes,edges){const adj=new Map(nodes.map(n=>[n.id,[]]));for(const e of edges)if(!e.external)adj.get(e.from)?.push(e.to);const out=[],active=new Set(),stack=[];function dfs(n){if(active.has(n)){const i=stack.indexOf(n);if(i>=0)out.push(stack.slice(i).concat(n));return}active.add(n);stack.push(n);for(const x of adj.get(n)||[])dfs(x);stack.pop();active.delete(n)}for(const n of adj.keys())dfs(n);const seen=new Set();return out.filter(c=>{const k=c.join('>');if(seen.has(k))return false;seen.add(k);return true}).slice(0,50)}
-export function typeCheckStatic(fileName,code){const s=String(code||''),e=ext(fileName),diagnostics=[];if(['js','jsx','mjs','cjs','ts','tsx'].includes(e)){const declared=new Set([...s.matchAll(/\b(?:const|let|var|function|class|interface|type)\s+([A-Za-z_$][\w$]*)/g)].map(m=>m[1])),globals=new Set(['if','for','while','switch','catch','function','console','Math','JSON','Object','Array','String','Number','Boolean','Date','Promise','setTimeout','require']);for(const m of s.matchAll(/\b([A-Za-z_$][\w$]*)\s*\(/g)){if(/[.?]\s*$/.test(s.slice(0,m.index)))continue;const n=m[1];if(!declared.has(n)&&!globals.has(n))diagnostics.push({severity:'warning',code:'UNRESOLVED-CALL',line:line(s,m.index),message:`Potential unresolved call '${n}'.`})}}return{ok:!diagnostics.some(d=>d.severity==='error'),strength:'heuristic',diagnostics}}
+export function typeCheckStatic(fileName,code){
+  const s=String(code||''),e=ext(fileName),diagnostics=[];
+  if(['js','jsx','mjs','cjs','ts','tsx'].includes(e)){
+    const declared=new Set([
+      ...[...s.matchAll(/\b(?:const|let|var|function|class|interface|type)\s+([A-Za-z_$][\w$]*)/g)].map(m=>m[1]),
+      ...[...s.matchAll(/\bimport\s+(?:\{([^}]+)\}|([A-Za-z_$][\w$]*))/g)].flatMap(m=>m[1]?m[1].split(',').map(x=>x.trim().split(/\s+as\s+/)[0]):[m[2]]).filter(Boolean),
+      ...[...s.matchAll(/(?:\(|,)\s*([A-Za-z_$][\w$]*)\s*(?:=[^,)]+)?(?=[,)])/g)].map(m=>m[1])
+    ]);
+    const globals=new Set(['if','for','while','switch','catch','function','console','Math','JSON','Object','Array','String','Number','Boolean','Date','Promise','setTimeout','clearTimeout','setInterval','clearInterval','require','fetch','Map','Set','Error','TypeError','RegExp','URL','Blob','Buffer','process','window','document','navigator']);
+    for(const m of s.matchAll(/\b([A-Za-z_$][\w$]*)\s*\(/g)){
+      if(/[.?]\s*$/.test(s.slice(0,m.index)))continue;
+      const n=m[1];
+      if(!declared.has(n)&&!globals.has(n))diagnostics.push({severity:'warning',code:'UNRESOLVED-CALL',line:line(s,m.index),message:`Potential unresolved call '${n}'.`});
+    }
+  }
+  return{ok:!diagnostics.some(d=>d.severity==='error'),strength:'heuristic',diagnostics};
+}
 export function taintAnalyze(fileName,code){const r=analyzeDataFlow(fileName,code);return{strength:r.strength,sources:r.sources,sinks:r.sinks,sanitizers:r.sanitizers,findings:r.flows}}
 /**
  * strict=false (default): taint findings are informational only and never flip `ok` —
