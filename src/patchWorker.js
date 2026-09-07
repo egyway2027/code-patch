@@ -1,14 +1,15 @@
 import {
   VERSION, LIMITS, analyzeAndApply, buildIntegrity, createDiff, detectFileType,
-  parsePatchBlocks, sha256, validateCode, verifyTransaction, finalizeTransaction,
+  parsePatchBlocks, sha256, validateCode, verifyTransaction, verifyUntouched, finalizeTransaction,
 } from './patchEngine.js';
 import { auditCodeChange, AUDITOR_VERSION } from './codeAuditor.js';
+import { evaluateSecurityPolicy, normalizePolicy } from './policyEngine.js';
 
 const cancelled = new Set();
 
 self.onmessage = async (event) => {
   const payload = event.data || {};
-  const { id, original, patchText, fileName, fileType, mode, allowReviewApply } = payload;
+  const { id, original, patchText, fileName, fileType, mode, allowReviewApply, reviewApproved, policy } = payload;
   if (payload.type === 'cancel') { cancelled.add(id); return; }
   const fail = (message, extra = {}) => self.postMessage({ id, version: VERSION, ok: false, committed: false, message, ...extra });
   const isCancelled = () => cancelled.has(id);
@@ -50,16 +51,27 @@ self.onmessage = async (event) => {
     }
 
     checkpoint();
+    const untouched = verifyUntouched(source, applied.code, parsed.blocks, applied.results, { mode });
+    if (!untouched.ok) {
+      return fail('فشل التحقق من سلامة الأجزاء غير الملموسة؛ تم إلغاء العملية لحماية الكود.', {
+        parsed, applied: { ...applied, code: source, rolledBack: true, reason: untouched.reason }, code: source,
+        validation: null, diff: [], integrity: { ok: false, originalHash, resultHash: null, reason: untouched.reason },
+      });
+    }
+
+    checkpoint();
     const type = fileType === 'auto' ? detectFileType(fileName) : fileType;
     const validation = await validateCode(applied.code, type, fileName);
     checkpoint();
-    const audit = await auditCodeChange({ before: source, after: applied.code, fileName, fileType: type, strict: true });
+    const audit = await auditCodeChange({ before: source, after: applied.code, fileName, fileType: type, strict: false });
     checkpoint();
-    if (!audit.ok) {
+    const p = normalizePolicy(policy);
+    const securityPolicy = evaluateSecurityPolicy(audit, p);
+    if (!securityPolicy.ok || (securityPolicy.review.length && p.validation.requireReviewApproval && !reviewApproved)) {
       return self.postMessage({ id, version: VERSION, ok: false, committed: false,
-        message: 'تم رفض النتيجة: Code Auditor اكتشف مشكلة حرجة مؤكدة؛ تم تنفيذ Rollback كامل.', parsed,
-        applied: { ...applied, code: source, rolledBack: true, reason: 'code-audit-blocked' }, code: source,
-        validation, audit, diff: [], integrity: { ok: false, originalHash, resultHash: null, reason: 'code-audit-blocked' },
+        message: securityPolicy.review.length ? 'تم إيقاف الاعتماد بانتظار الموافقة على نتائج المراجعة الأمنية.' : 'تم رفض النتيجة بواسطة السياسة الأمنية.', parsed,
+        applied: { ...applied, code: source, rolledBack: true, reason: 'security-policy-blocked' }, code: source,
+        validation, audit, securityPolicy, diff: [], integrity: { ok: false, originalHash, resultHash: null, reason: 'security-policy-blocked' },
       });
     }
     if (!validation.ok) {
