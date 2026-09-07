@@ -1,6 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { parseCode } from '../src/astEngine.js';
 import { analyzeCrossFileImpact } from '../src/impactAnalysis.js';
@@ -19,7 +20,13 @@ const ALLOWED_ORIGINS=new Set(String(process.env.CORS_ORIGIN||'http://127.0.0.1:
 const isLoopbackHost = ['127.0.0.1','localhost','::1'].includes(HOST);
 if (!isLoopbackHost && !AUTH_TOKEN) throw new Error('CODE_PATCHER_AUTH_TOKEN is required when compiler server is not bound to loopback.');
 function corsOrigin(req){const origin=String(req.headers.origin||'');return origin && ALLOWED_ORIGINS.has(origin) ? origin : (isLoopbackHost && !origin ? '*' : 'null');}
-function authorized(req){if(!AUTH_TOKEN)return isLoopbackHost;const h=String(req.headers.authorization||'');return h === `Bearer ${AUTH_TOKEN}`;}
+function authorized(req){
+  if(!AUTH_TOKEN)return isLoopbackHost;
+  const h=String(req.headers.authorization||'');
+  const expected=`Bearer ${AUTH_TOKEN}`;
+  const b1=Buffer.from(h), b2=Buffer.from(expected);
+  return b1.length === b2.length && crypto.timingSafeEqual(b1, b2);
+}
 
 
 function send(res,status,body,req=null){res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','access-control-allow-origin':corsOrigin(req||{headers:{}}),'access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type,authorization','vary':'Origin'});res.end(status===204?'':JSON.stringify(body));}
