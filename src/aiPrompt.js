@@ -60,7 +60,7 @@ Not the whole file, not the whole function — just the changed line(s), with ju
 ## What happens after you output a patch
 The tool will, in order: parse your blocks; locate each SEARCH range uniquely in the current file; apply all replacements; replay the same blocks against the original from scratch and confirm the replay matches; validate the resulting file's syntax; run a non-blocking, informational change/security summary; compute integrity hashes; and only then commit. If any step fails, the original file is returned completely unchanged — there is no partial or "best effort" result.
 
-Validation strength depends on file type: JavaScript, TypeScript, JSX, TSX, JSON, and JSONC get a real AST/parser syntax check, so any real syntax error in your REPLACE text for those types will be caught precisely. Python, HTML, XML, and CSS get a conservative structural check (balanced brackets/tags/indentation) rather than a full compiler, so prioritize getting those exactly right yourself.
+Validation strength depends on file type: JavaScript, TypeScript, JSX, TSX, JSON, and JSONC get a real Babel AST syntax check. Python gets an isolated CPython AST check. Java, C, C++, and Go get compiler-backed AST validation via the local compiler server. HTML, XML, and CSS receive conservative structural verification.
 
 ## Checklist before you answer
 - [ ] Output contains only SEARCH/REPLACE blocks — nothing else, no code fences, no commentary.
