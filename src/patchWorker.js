@@ -67,9 +67,10 @@ self.onmessage = async (event) => {
     checkpoint();
     const p = normalizePolicy(policy);
     const securityPolicy = evaluateSecurityPolicy(audit, p);
-    if (!securityPolicy.ok || (securityPolicy.review.length && p.validation.requireReviewApproval && !reviewApproved)) {
+    const needsApproval = securityPolicy.review.length > 0 && p.validation.requireReviewApproval;
+    if (!securityPolicy.ok || (needsApproval && reviewApproved === false)) {
       return self.postMessage({ id, version: VERSION, ok: false, committed: false,
-        message: securityPolicy.review.length ? 'تم إيقاف الاعتماد بانتظار الموافقة على نتائج المراجعة الأمنية.' : 'تم رفض النتيجة بواسطة السياسة الأمنية.', parsed,
+        message: 'تم إيقاف الاعتماد بانتظار الموافقة على نتائج المراجعة الأمنية.', parsed,
         applied: { ...applied, code: source, rolledBack: true, reason: 'security-policy-blocked' }, code: source,
         validation, audit, securityPolicy, diff: [], integrity: { ok: false, originalHash, resultHash: null, reason: 'security-policy-blocked' },
       });
