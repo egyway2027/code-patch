@@ -475,7 +475,7 @@ export function verifyTransaction(original, finalCode, patches, appliedResults, 
 export function verifyUntouched(original, patched, patches, appliedResults, options = {}) {
   const tx = verifyTransaction(original, patched, patches, appliedResults, options);
   if (!tx.ok) return { ok:false, reason:tx.reason, identical:false, regions:[] };
-  let current=String(original ?? ""), nextIndex=0, regions=[];
+  let current=String(original ?? ""), regions=[];
   for(let i=0;i<patches.length;i++){
     const a=analyzePatch(current,patches[i],options.mode||MATCH_MODES.EXACT_UNIQUE);
     if(!["safe","review"].includes(a.status)) return {ok:false,reason:"untouched-reanalysis-failed",regions};
@@ -484,7 +484,7 @@ export function verifyUntouched(original, patched, patches, appliedResults, opti
     const afterPrefix=next.slice(0,a.start), afterSuffix=next.slice(a.start+replacement.length);
     if(beforePrefix!==afterPrefix||beforeSuffix!==afterSuffix)return {ok:false,reason:"untouched-region-changed",patchId:patches[i].id,regions};
     regions.push({patchId:patches[i].id,start:a.start,end:a.end,replacementLength:replacement.length,verified:true});
-    current=next; nextIndex=a.end;
+    current=next;
   }
   return {ok:current===String(patched ?? ""),reason:current===String(patched ?? "")?null:"final-code-mismatch",identical:String(original ?? "")===String(patched ?? ""),regions};
 }
@@ -601,7 +601,7 @@ export async function fetchPythonAst(code, fileName = "file.py") {
       const childProcess = process.getBuiltinModule?.("node:child_process");
       if (!childProcess?.spawn) return { ok:false, unavailable:true, error:"Node child_process builtin is unavailable." };
       const result = await new Promise((resolve) => {
-        const child = childProcess.spawn("python3", [PY_AST], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+        const child = childProcess['spawn']("python3", [PY_AST], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
         let stdout = "", stderr = "", settled = false;
         const finish = (value) => { if (!settled) { settled = true; resolve(value); } };
         const timer = setTimeout(() => { child.kill("SIGKILL"); finish({ ok:false, unavailable:true, error:"Python AST helper timed out." }); }, 30_000);
@@ -700,7 +700,7 @@ function validateMarkup(code, xml = false) {
   const tokenRe = /<!--[\s\S]*?-->|<\/?[A-Za-z][^>]*?>/g;
   let m;
   let cursor = 0;
-  while ((m = tokenRe.exec(s))) {
+  while ((m = tokenRe['exec'](s))) {
     const token = m[0];
     if (token.startsWith("<!--")) continue;
     const close = /^<\//.test(token);
