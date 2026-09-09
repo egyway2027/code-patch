@@ -36,12 +36,12 @@ async function exists(filePath){try{await fs.lstat(filePath);return true}catch{r
 
 async function realWorkspace(root){return fs.realpath(path.resolve(root));}
 
-export async function assertSafePath(filePath,root){
+export async function assertSafePath(filePath,root,journalDir=null){
   const workspace=await realWorkspace(root);
   const resolved=path.resolve(workspace,String(filePath||''));
   const rel=path.relative(workspace,resolved);
   if(!rel||rel.startsWith('..')||path.isAbsolute(rel)) throw new Error(`Path escapes workspace root: ${filePath}`);
-  const reservedJournal=path.resolve(workspace,'.code-patcher-transactions');
+  const reservedJournal=journalDir ? path.resolve(journalDir) : path.resolve(workspace,'.code-patcher-transactions');
   const reservedRel=path.relative(reservedJournal,resolved);
   if(!reservedRel || (!reservedRel.startsWith('..') && !path.isAbsolute(reservedRel))) throw new Error(`Refusing to modify transaction journal path: ${filePath}`);
   if(path.normalize(resolved)===path.normalize(path.join(workspace,LOCK_FILE))) throw new Error(`Refusing to modify transaction lock: ${filePath}`);
@@ -152,7 +152,7 @@ function committedIndexes(record){
 
 async function safeRestore(journalDir,record,item,workspaceRoot){
   const {f,i}=item;
-  const target=await assertSafePath(f.filePath||f.target,workspaceRoot);
+  const target=await assertSafePath(f.filePath||f.target,workspaceRoot,journalDir);
   const current=await fileHash(target);
   const expectedPost=f.resultHash || record.postCommitHashes?.[f.fileName] || null;
   if(expectedPost && current.hash!==expectedPost){
@@ -181,7 +181,7 @@ export async function recoverTransactions({workspaceRoot=process.cwd(),journalDi
       // Reconcile actual filesystem state first: committed result, original state, or unknown.
       const states=[];
       for(let i=0;i<(record.results||[]).length;i++){
-        const f=record.results[i];const target=await assertSafePath(f.filePath||f.target,workspaceRoot);
+        const f=record.results[i];const target=await assertSafePath(f.filePath||f.target,workspaceRoot,journalDir);
         try{const {hash}=await fileHash(target);states.push({i,f,hash})}catch(e){states.push({i,f,error:String(e?.message||e)})}
       }
       const allResult=states.length>0&&states.every(x=>x.hash===x.f.resultHash);
@@ -217,7 +217,7 @@ export async function commitPreparedTransaction(prepared,{workspaceRoot=process.
     const seenTargets=new Set();
     for(let i=0;i<prepared.results.length;i++){
       const f=prepared.results[i];if(!f.filePath)throw new Error(`No filePath supplied for ${f.fileName}.`);
-      const target=await assertSafePath(f.filePath,workspaceRoot);
+      const target=await assertSafePath(f.filePath,workspaceRoot,journalDir);
       const targetKey=path.normalize(target);if(seenTargets.has(targetKey))throw new Error(`Duplicate resolved target in transaction: ${f.fileName}.`);seenTargets.add(targetKey);
       const st=await fs.stat(target);
       if(!allowReadOnlyTarget && (st.mode & 0o222)===0) throw new Error(`Refusing to overwrite read-only target: ${f.fileName}.`);
@@ -280,7 +280,7 @@ export async function rollbackCommittedTransaction(record,{workspaceRoot=process
     const targets=committedIndexes(record);
     if(!targets.length)return reject('Transaction contains no committed files to roll back.',{transactionId:record.transactionId,status:record.status});
     // Preflight all current hashes before touching anything.
-    for(const item of targets){const f=item.f,target=await assertSafePath(f.filePath||f.target,workspaceRoot),{hash}=await fileHash(target);const expected=f.resultHash||record.postCommitHashes?.[f.fileName];if(expected&&hash!==expected)throw new Error(`Rollback refused: ${f.fileName} was externally modified after commit.`)}
+    for(const item of targets){const f=item.f,target=await assertSafePath(f.filePath||f.target,workspaceRoot,journalDir),{hash}=await fileHash(target);const expected=f.resultHash||record.postCommitHashes?.[f.fileName];if(expected&&hash!==expected)throw new Error(`Rollback refused: ${f.fileName} was externally modified after commit.`)}
     const restored=[];
     for(const item of targets){const r=await safeRestore(journalDir,record,item,workspaceRoot);if(!r.ok)throw new Error(`Rollback refused for ${r.fileName}.`);restored.push(r.fileName)}
     const out={ok:true,prepared:false,committed:false,rolledBack:true,status:'ROLLED_BACK',transactionId:record.transactionId,restored};
