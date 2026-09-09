@@ -110,5 +110,13 @@ const T={
 for(const [code] of LANGUAGES) if(!T[code]) T[code]={...base,language:LANGUAGES.find(x=>x[0]===code)?.[1]||code};
 export function getLanguage(){try{return localStorage.getItem('code-patcher-language')||DEFAULT_LANGUAGE}catch{return DEFAULT_LANGUAGE}}
 export function setLanguage(code){try{localStorage.setItem('code-patcher-language',code)}catch{}}
-export function getStrings(code){return T[code]||T[DEFAULT_LANGUAGE]}
+export function getStrings(code){
+  const langDict = T[code] || T[DEFAULT_LANGUAGE];
+  return new Proxy(langDict, {
+    get(target, prop) {
+      if (prop in target) return target[prop];
+      return base[prop] || prop;
+    }
+  });
+}
 export function isRTL(code){return ['ar','ur'].includes(code)}
