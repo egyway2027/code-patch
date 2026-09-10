@@ -1,122 +1,58 @@
+import en from './locales/en';
+import ar from './locales/ar';
+
 export const LANGUAGES = [
-  ['en','English','LTR'],['zh','中文','LTR'],['hi','हिन्दी','LTR'],['es','Español','LTR'],['fr','Français','LTR'],
-  ['ar','العربية','RTL'],['bn','বাংলা','LTR'],['pt','Português','LTR'],['ru','Русский','LTR'],['ur','اردو','RTL'],
-  ['id','Bahasa Indonesia','LTR'],['de','Deutsch','LTR'],['ja','日本語','LTR'],['mr','मराठी','LTR'],['te','తెలుగు','LTR'],
-  ['tr','Türkçe','LTR'],['ta','தமிழ்','LTR'],['vi','Tiếng Việt','LTR'],['ko','한국어','LTR'],['it','Italiano','LTR']
+  ['en', 'English', 'LTR'],
+  ['ar', 'العربية', 'RTL'],
+  ['zh', '中文', 'LTR'],
+  ['hi', 'हिन्दी', 'LTR'],
+  ['es', 'Español', 'LTR'],
+  ['fr', 'Français', 'LTR'],
+  ['bn', 'বাংলা', 'LTR'],
+  ['pt', 'Português', 'LTR'],
+  ['ru', 'Русский', 'LTR'],
+  ['ur', 'اردو', 'RTL'],
+  ['id', 'Bahasa Indonesia', 'LTR'],
+  ['de', 'Deutsch', 'LTR'],
+  ['ja', '日本語', 'LTR'],
+  ['mr', 'मराठी', 'LTR'],
+  ['te', 'తెలుగు', 'LTR'],
+  ['tr', 'Türkçe', 'LTR'],
+  ['ta', 'தமிழ்', 'LTR'],
+  ['vi', 'Tiếng Việt', 'LTR'],
+  ['ko', '한국어', 'LTR'],
+  ['it', 'Italiano', 'LTR']
 ];
-export const DEFAULT_LANGUAGE='en';
-const base={
- title:'Code Patcher V23 — Core-First Merge (Transaction Journal + Cross-file Impact + Multi-language)', subtitle:'Fail-Closed • Atomic • Replay • Real AST Gates • Semantic Diff • Security Audit • Integrity • Multi-File Projects',
- undo:'Undo', reset:'Reset', language:'Language', original:'Original / Editor', patch:'SEARCH / REPLACE Patch', upload:'Upload', uploadPatch:'Upload Patch', blocks:'Blocks', errors:'Errors', preflight:'Preflight', run:'Safely validate and apply all changes', running:'Running transaction gates…', cancel:'Cancel', result:'Approved Result', copy:'Copy', copied:'Copied', download:'Download', audit:'Code Audit V23 — Change & Risk Report', diff:'Diff — informational only', transaction:'Transaction', project:'Project mode', single:'Single file', projectFiles:'Project files', addFiles:'Add project files', projectPatch:'Project patch manifest (JSON)', applyProject:'Validate & apply project transaction', projectHint:'Each entry: { fileName, content, patchText }. The whole project commits only if every file passes all gates.', safe:'No issues found by current audit rules.', searchReplace:'SEARCH / REPLACE', mode:'Match mode', review:'Review apply', strict:'Strict Security Gate', settingsSaved:'Language preference is saved automatically.',
- emptyCode:'Original code is empty.', emptyPatch:'Patch blocks are empty.', invalidPatch:'Invalid Patch. Fix all errors first.', noBlocks:'No Patch blocks found.', projectEmpty:'Add at least one project file.', projectInvalid:'Project manifest is invalid JSON.', projectRollback:'Project transaction rejected; no file was committed.', projectCommitted:'Project transaction committed successfully.',
- tx:'Transaction: Parse → Preflight → Apply → Verify → Replay → Validate → Audit → Integrity → Commit',
- aiPromptButton:'AI tool info', aiPromptCopied:'Prompt copied', atomicMode:'Atomic / Safe Mode — mandatory', footerNote:'Any failure in Parse, Match, Verify, Replay, Validation, or Integrity = full Rollback. There is no Partial Commit. Audit and static-intelligence findings are informational only and never block the commit unless you enable Strict Security Gate, or unless the central policy engine marks a finding as requiring review — in that case, check "Approve pending review findings" once you have read them, then retry.',
- changesSummary:'Change summary', noChanges:'No change in top-level definitions (imports/exports/functions/classes/variables).', added:'Added', removed:'Removed', changed:'Changed', nonSemanticSummary:'This type has no semantic AST analysis; line-based summary only', noRealDiff:'(no actual difference)',
- securitySection:'Security scan (advisory — never blocks unless Strict Security Gate is on)', notScanned:'No AST-based security scan was run for this file in this operation (either the type does not support it, or its AST service was unavailable now); the absence of findings here does not mean the code is free of issues.', line:'line', confidence:'Confidence',
- projectGraph:'Project Graph & Intelligence', filesMetric:'Files', diagnosticsMetric:'Diagnostics', taintMetric:'Taint Flows', cyclesMetric:'Cycles', analyzeProject:'Analyze project', projectResultLabel:'Project result', addProjectFile:'Add file', removeProjectFile:'Remove', fileNameLabel:'File name', workspacePathLabel:'Workspace path (project commit)', fileTypeLabel:'Type', charsLabel:'Chars', patchTextLabel:'Patch text', contentLabel:'File content', singleFileMode:'Single file', projectMode:'Multi-file project', intelligenceNote:'Type/consistency and taint diagnostics are heuristic static analysis, not a real compiler — they inform, and only block commit when Strict Security Gate is enabled.',
- reviewApprovedLabel:'Approve pending review findings', reviewApprovedHint:'Some findings are neither auto-safe nor auto-blocked; the policy engine holds them for human review. Read the Security / Project panel, then check this box and retry to proceed.', compilerServerOn:'Compiler Server: ON', compilerServerOff:'Compiler Server: OFF', compilerServerOffline:'Compiler Server is offline. Run "npm run server" then retry.',
- saveBackup:'Save backup', systemStatus:'System status', readyReview:'Ready for safe review',
- editorTab:'Editor', securityIdeTab:'Security & IDE Scan', aiPromptTooltip:'Copies a ready-made prompt explaining the tool format to any AI', heroTitle:'Smart Patch Editor', heroDescription:'A premium interface inspired by emerald green and copper — with a clear separation between the original file and SEARCH / REPLACE edits.', patchHeading:'SEARCH / REPLACE Edits', prepareProjectBtn:'Prepare project transaction', commitProjectBtn:'Commit prepared project', analysisNoFile:'Please load a file first to run the analysis.', analysisTitle:'Smart Code Analysis (Static Intelligence)', typeDiagnosticsMetric:'Type diagnostics', taintSourcesMetric:'Taint sources', taintSinksMetric:'Taint sinks', typeConsistencyHeading:'Type & consistency diagnostics', noTypeIssues:'No type or consistency issues found.', taintFlowHeading:'Data flow / Taint', noTaintFlow:'No data flow was detected by the current rules.', sourceLabel:'source', targetLabel:'target', auditReportSummary:'📋 View technical audit report (JSON Audit Report)', secEvalTitle:'⚠️ High-Risk Security Alert', secEvalDesc:'The code was rejected because it contains a dynamic execution command (eval/exec) that allows running untrusted code, which could put your system at risk.', secSecretTitle:'🔑 Secret Key Leak Alert', secSecretDesc:'An API key or password was found written in plain text inside the code. It is recommended to move it to .env files to keep it secret.', secXssTitle:'⚠️ Interface Security Warning (XSS)', secXssDesc:'A direct modification of innerHTML was detected, which could open a malicious injection vulnerability if the input is not sanitized.', secSafeTitle:'✓ Code is Safe and Approved', secSafeDesc:'All syntax and security safety-gate checks passed successfully.', secGenericTitle:'⚠️ Security Alert', secGenericDesc:'Security or structural findings were detected that require review before approval.', tagline:'Premium • Safe Patch • Verify • Rollback', compilerLabel:'Compiler:', successServerMsg:'V23: Server Compiler + Patch Core + AST + Security + Integrity gates passed.', successWorkerMsg:'V23: Patch Core + AST + Security + Integrity gates passed.', rejectedFallbackMsg:'Transaction rejected and rolled back.', executionFailureMsg:'Execution failure', projectServerErrorMsg:'Project server error.', projectCommitErrorMsg:'Project commit error.',
-};
-const T={
- en:base,
- ar:{...base,
-  title:'Code Patcher V23 — محرر التعديلات الذكي',
-  subtitle:'رفض آمن • ذري • Replay • بوابات AST حقيقية • تدقيق أمني • سلامة المعاملات',
-  undo:'تراجع',
-  reset:'إعادة ضبط',
-  language:'اللغة',
-  original:'الملف الأصلي / Editor',
-  patch:'كتل التعديل SEARCH / REPLACE',
-  upload:'رفع ملف',
-  uploadPatch:'رفع Patch',
-  blocks:'الكتل',
-  errors:'الأخطاء',
-  preflight:'الفحص المسبق',
-  run:'فحص وتطبيق كل التعديلات بأمان',
-  running:'جاري تشغيل بوابات المعاملة…',
-  cancel:'إلغاء',
-  result:'النتيجة المعتمدة',
-  copy:'نسخ',
-  copied:'تم النسخ',
-  download:'تنزيل',
-  audit:'تقرير الفحص الأمني والمخاطر V23',
-  diff:'الفروقات (Diff)',
-  transaction:'المعاملة',
-  project:'وضع المشروع',
-  single:'ملف واحد',
-  projectFiles:'ملفات المشروع',
-  addFiles:'إضافة ملفات المشروع',
-  fileNameLabel:'اسم الملف',
-  workspacePathLabel:'مسار المشروع (Project Workspace)',
-  fileTypeLabel:'نوع الملف',
-  charsLabel:'عدد الأحرف',
-  saveBackup:'حفظ نسخة آمنة',
-  systemStatus:'حالة النظام',
-  readyReview:'جاهز للمراجعة الآمنة',
-  projectPatch:'بيان تعديلات المشروع (JSON)',
-  applyProject:'فحص وتطبيق معاملة المشروع',
-  projectHint:'كل عنصر: { fileName, content, patchText }. لا يتم اعتماد أي ملف حتى تجتاز جميع الملفات كل البوابات.',
-  safe:'لم يتم العثور على أي مخاطر برمجية بواسطة قواعد الفحص الحالية.',
-  searchReplace:'SEARCH / REPLACE',
-  mode:'وضع المطابقة',
-  review:'تطبيق المراجعة',
-  strict:'بوابة الأمان الصارمة',
-  settingsSaved:'تم حفظ تفضيل اللغة تلقائياً.',
-  emptyCode:'الكود الأصلي فارغ.',
-  emptyPatch:'كتل التعديل فارغة.',
-  invalidPatch:'الـPatch غير صالح. يرجى تصحيح الأخطاء أولاً.',
-  noBlocks:'لم يتم العثور على كتل Patch صالحة.',
-  projectEmpty:'أضف ملف مشروع واحداً على الأقل.',
-  projectInvalid:'بيان المشروع بصيغة JSON غير صالحة.',
-  projectRollback:'تم رفض المعاملة وإلغاء كل التعديلات (Rollback).',
-  projectCommitted:'تم اعتماد وتطبيق المعاملة بنجاح.',
-  tx:'معاملة جارية: التحقق ← التطبيق ← الفحص الأمني ← السلامة',
-  aiPromptButton:'معلومات الأداة للذكاء الاصطناعي',
-  aiPromptCopied:'تم نسخ البرومت',
-  reviewApprovedLabel:'الموافقة على نتائج المراجعة',
-  reviewApprovedHint:'بعض الملاحظات تتطلب إذناً يدوياً للموافقة. راجع التحذيرات ثم علّم هنا للمتابعة.',
-  compilerServerOn:'سيرفر المترجم: متصل (ON)',
-  compilerServerOff:'سيرفر المترجم: متوقف (OFF)',
-  compilerServerOffline:'سيرفر المترجم غير متاح حالياً.',
-  projectGraph:'اعتماديات المشروع والتحليل الذكي',
-  filesMetric:'الملفات',
-  diagnosticsMetric:'التشخيصات',
-  taintMetric:'تدفقات Taint',
-  cyclesMetric:'الدورات المغلقة',
-  analyzeProject:'تحليل المشروع',
-  intelligenceNote:'فحوصات التوافق وتدفق البيانات هي تحليلات استدلالية إرشادية لا تنفذ الكود مطلقاً.',
-  editorTab:'المحرر', securityIdeTab:'فحص الأمان والـ IDE', aiPromptTooltip:'ينسخ برومت جاهز يشرح تنسيق الأداة لأي برنامج ذكاء اصطناعي', heroTitle:'محرر التعديلات الذكي', heroDescription:'واجهة جديدة فاخرة مستوحاة من الأخضر الزمردي والنحاسي — مع فصل واضح بين الملف الأصلي وتعديلات SEARCH / REPLACE.', patchHeading:'تعديلات SEARCH / REPLACE', prepareProjectBtn:'تجهيز معاملة المشروع', commitProjectBtn:'اعتماد المعاملة المجهزة', analysisNoFile:'يرجى تحميل ملف أولاً لتشغيل التحليل.', analysisTitle:'التحليل الذكي للكود (Static Intelligence)', typeDiagnosticsMetric:'تشخيصات النوع', taintSourcesMetric:'مصادر Taint', taintSinksMetric:'أهداف Taint', typeConsistencyHeading:'تشخيصات النوع والاتساق', noTypeIssues:'لا توجد مشاكل في النوع أو الاتساق.', taintFlowHeading:'تدفق البيانات / Taint', noTaintFlow:'لم يتم رصد أي تدفق بيانات بالقواعد الحالية.', line:'سطر', sourceLabel:'مصدر', targetLabel:'هدف', auditReportSummary:'📋 عرض تقرير التدقيق الفني (JSON Audit Report)', secEvalTitle:'⚠️ تنبيه أمني عالي الخطورة', secEvalDesc:'تم رفض الكود لأنه يحتوي على أمر تنفيذ ديناميكي (eval/exec) يتيح تشغيل شفرات غير موثوقة قد تعرض نظامك للخطر.', secSecretTitle:'🔑 تنبيه تسريب مفتاح سري', secSecretDesc:'تم اكتشاف مفتاح API أو كلمة سر مكتوبة بشكل مكشوف داخل الكود. يُنصح بنقلها إلى ملفات .env للحفاظ على السرية.', secXssTitle:'⚠️ تحذير أمان الواجهة (XSS)', secXssDesc:'تم اكتشاف تعديل مباشر لـ innerHTML قد يفتح ثغرة حقن خبيثة إذا كانت المدخلات غير معقمة.', secSafeTitle:'✓ الكود آمن ومعتمد', secSafeDesc:'تم اجتياز جميع فحوصات القواعد وبوابات السلامة النحوية والأمنية بنجاح.', secGenericTitle:'⚠️ تنبيه أمني', secGenericDesc:'تم رصد ملاحظات أمنية أو بنيوية تتطلب المراجعة قبل الاعتماد.', tagline:'نسخة مميزة • تعديل آمن • تحقق • تراجع', compilerLabel:'المترجم:', successServerMsg:'V23: تم اجتياز بوابات المترجم على السيرفر + محرك الباتش + AST + الأمان + سلامة البيانات.', successWorkerMsg:'V23: تم اجتياز بوابات محرك الباتش + AST + الأمان + سلامة البيانات.', rejectedFallbackMsg:'تم رفض المعاملة والتراجع عن كل التعديلات (Rollback).', executionFailureMsg:'فشل التنفيذ', projectServerErrorMsg:'خطأ في سيرفر المشروع.', projectCommitErrorMsg:'خطأ في اعتماد معاملة المشروع.'
- },
- es:{...base,title:'Code Patcher V23 — AST + Seguridad + Transacciones de Proyecto',subtitle:'Fail-Closed • Atómico • Replay • AST real • Diff semántico • Auditoría • Integridad • Proyectos multiarchivo',undo:'Deshacer',reset:'Restablecer',language:'Idioma',original:'Archivo original',patch:'Bloques de parche',upload:'Subir archivo',uploadPatch:'Subir parche',blocks:'Bloques',errors:'Errores',preflight:'Preflight',run:'Validar y aplicar todos los cambios de forma segura',running:'Ejecutando compuertas…',cancel:'Cancelar',result:'Resultado aprobado',copy:'Copiar',copied:'Copiado',download:'Descargar',audit:'Auditoría V23 — Cambios y riesgos',diff:'Diff — solo informativo',transaction:'Transacción',project:'Modo proyecto',single:'Archivo único',projectFiles:'Archivos del proyecto',addFiles:'Añadir archivos',projectPatch:'Manifiesto de parches del proyecto (JSON)',applyProject:'Validar y aplicar transacción del proyecto',projectHint:'Cada entrada: { fileName, content, patchText }. El proyecto completo se confirma solo si todos los archivos superan todas las compuertas.',settingsSaved:'La preferencia de idioma se guarda automáticamente.'},
- fr:{...base,title:'Code Patcher V23 — AST + Sécurité + Transactions projet',subtitle:'Fail-Closed • Atomique • Replay • AST réel • Diff sémantique • Audit sécurité • Intégrité • Projets multi-fichiers',undo:'Annuler',reset:'Réinitialiser',language:'Langue',original:'Fichier original',patch:'Blocs de patch',upload:'Importer un fichier',uploadPatch:'Importer un patch',blocks:'Blocs',errors:'Erreurs',preflight:'Prévalidation',run:'Valider et appliquer tous les changements en sécurité',running:'Exécution des contrôles…',cancel:'Annuler',result:'Résultat approuvé',copy:'Copier',copied:'Copié',download:'Télécharger',audit:'Audit V23 — Changements et risques',diff:'Diff — informatif',project:'Mode projet',single:'Fichier unique',projectFiles:'Fichiers du projet',addFiles:'Ajouter des fichiers',applyProject:'Valider et appliquer la transaction du projet',settingsSaved:'La préférence de langue est enregistrée automatiquement.'},
- de:{...base,title:'Code Patcher V23 — AST + Sicherheit + Projekt-Transaktionen',undo:'Rückgängig',reset:'Zurücksetzen',language:'Sprache',original:'Originaldatei',patch:'Patch-Blöcke',upload:'Datei hochladen',uploadPatch:'Patch hochladen',blocks:'Blöcke',errors:'Fehler',preflight:'Vorprüfung',run:'Alle Änderungen sicher prüfen und anwenden',running:'Transaktionsprüfungen laufen…',cancel:'Abbrechen',result:'Freigegebenes Ergebnis',copy:'Kopieren',copied:'Kopiert',download:'Herunterladen',project:'Projektmodus',single:'Einzeldatei',projectFiles:'Projektdateien',projectPatch:'Projekt-Patch-Manifest (JSON)',applyProject:'Projekttransaktion prüfen und anwenden',settingsSaved:'Die Spracheinstellung wird automatisch gespeichert.'},
- pt:{...base,title:'Code Patcher V23 — AST + Segurança + Transações de Projeto',undo:'Desfazer',reset:'Redefinir',language:'Idioma',original:'Arquivo original',patch:'Blocos de patch',upload:'Enviar arquivo',uploadPatch:'Enviar patch',blocks:'Blocos',errors:'Erros',preflight:'Pré-verificação',run:'Validar e aplicar todas as alterações com segurança',running:'Executando validações…',cancel:'Cancelar',result:'Resultado aprovado',copy:'Copiar',copied:'Copiado',download:'Baixar',project:'Modo projeto',single:'Arquivo único',projectFiles:'Arquivos do projeto',applyProject:'Validar e aplicar transação do projeto',settingsSaved:'A preferência de idioma é salva automaticamente.'},
- ru:{...base,title:'Code Patcher V23 — AST + Безопасность + Транзакции проекта',undo:'Отменить',reset:'Сбросить',language:'Язык',original:'Исходный файл',patch:'Блоки патча',upload:'Загрузить файл',uploadPatch:'Загрузить патч',blocks:'Блоки',errors:'Ошибки',preflight:'Предпроверка',run:'Безопасно проверить и применить изменения',running:'Выполняются проверки…',cancel:'Отмена',result:'Подтверждённый результат',copy:'Копировать',copied:'Скопировано',download:'Скачать',project:'Режим проекта',single:'Один файл',projectFiles:'Файлы проекта',applyProject:'Проверить и применить транзакцию проекта',settingsSaved:'Выбор языка сохраняется автоматически.'},
- ja:{...base,title:'Code Patcher V23 — AST・セキュリティ・プロジェクトトランザクション',undo:'元に戻す',reset:'リセット',language:'言語',original:'元のファイル',patch:'パッチブロック',upload:'ファイルをアップロード',uploadPatch:'パッチをアップロード',blocks:'ブロック',errors:'エラー',preflight:'事前検証',run:'すべての変更を安全に検証して適用',running:'トランザクション検証中…',cancel:'キャンセル',result:'承認済み結果',copy:'コピー',copied:'コピー済み',download:'ダウンロード',project:'プロジェクトモード',single:'単一ファイル',projectFiles:'プロジェクトファイル',applyProject:'プロジェクトトランザクションを検証して適用',settingsSaved:'言語設定は自動保存されます。'},
- zh:{...base,title:'Code Patcher V23 — AST、安全与项目事务',undo:'撤销',reset:'重置',language:'语言',original:'原始文件',patch:'补丁块',upload:'上传文件',uploadPatch:'上传补丁',blocks:'块',errors:'错误',preflight:'预检',run:'安全验证并应用所有更改',running:'正在运行事务检查…',cancel:'取消',result:'已批准结果',copy:'复制',copied:'已复制',download:'下载',project:'项目模式',single:'单文件',projectFiles:'项目文件',applyProject:'验证并应用项目事务',settingsSaved:'语言偏好会自动保存。'},
- hi:{...base,title:'Code Patcher V23 — AST + सुरक्षा + प्रोजेक्ट ट्रांजैक्शन',undo:'पूर्ववत',reset:'रीसेट',language:'भाषा',original:'मूल फ़ाइल',patch:'पैच ब्लॉक',upload:'फ़ाइल अपलोड करें',uploadPatch:'पैच अपलोड करें',blocks:'ब्लॉक',errors:'त्रुटियाँ',preflight:'प्रीफ़्लाइट',run:'सभी बदलाव सुरक्षित रूप से जाँचें और लागू करें',running:'ट्रांजैक्शन जाँच चल रही है…',cancel:'रद्द करें',result:'स्वीकृत परिणाम',copy:'कॉपी',copied:'कॉपी हो गया',download:'डाउनलोड',project:'प्रोजेक्ट मोड',single:'एक फ़ाइल',projectFiles:'प्रोजेक्ट फ़ाइलें',applyProject:'प्रोजेक्ट ट्रांजैक्शन जाँचें और लागू करें',settingsSaved:'भाषा प्राथमिकता स्वतः सहेजी जाती है।'},
- bn:{...base,language:'ভাষা',original:'মূল ফাইল',patch:'প্যাচ ব্লক',upload:'ফাইল আপলোড',uploadPatch:'প্যাচ আপলোড',blocks:'ব্লক',errors:'ত্রুটি',preflight:'প্রি-ফ্লাইট',run:'নিরাপদে সব পরিবর্তন যাচাই ও প্রয়োগ করুন',cancel:'বাতিল',result:'অনুমোদিত ফলাফল',copy:'কপি',download:'ডাউনলোড',project:'প্রজেক্ট মোড',single:'একটি ফাইল',projectFiles:'প্রজেক্ট ফাইল',settingsSaved:'ভাষা পছন্দ স্বয়ংক্রিয়ভাবে সংরক্ষিত হয়।'},
- ur:{...base,language:'زبان',original:'اصل فائل',patch:'پیچ بلاکس',upload:'فائل اپ لوڈ کریں',uploadPatch:'پیچ اپ لوڈ کریں',blocks:'بلاکس',errors:'غلطیاں',preflight:'پری فلائٹ',run:'تمام تبدیلیاں محفوظ طریقے سے چیک اور لاگو کریں',cancel:'منسوخ',result:'منظور شدہ نتیجہ',copy:'کاپی',download:'ڈاؤن لوڈ',project:'پروجیکٹ موڈ',single:'ایک فائل',projectFiles:'پروجیکٹ فائلیں',settingsSaved:'زبان کی ترجیح خودکار طور پر محفوظ ہوتی ہے۔'},
- id:{...base,language:'Bahasa',original:'File asli',patch:'Blok patch',upload:'Unggah file',uploadPatch:'Unggah patch',blocks:'Blok',errors:'Kesalahan',preflight:'Pra-pemeriksaan',run:'Validasi dan terapkan semua perubahan dengan aman',cancel:'Batal',result:'Hasil disetujui',copy:'Salin',download:'Unduh',project:'Mode proyek',single:'Satu file',projectFiles:'File proyek',settingsSaved:'Pilihan bahasa disimpan otomatis.'},
- mr:{...base,language:'भाषा',original:'मूळ फाइल',patch:'पॅच ब्लॉक्स',upload:'फाइल अपलोड करा',uploadPatch:'पॅच अपलोड करा',blocks:'ब्लॉक्स',errors:'त्रुटी',preflight:'पूर्वतपासणी',run:'सर्व बदल सुरक्षितपणे तपासा आणि लागू करा',cancel:'रद्द करा',result:'मंजूर निकाल',copy:'कॉपी',download:'डाउनलोड',project:'प्रोजेक्ट मोड',single:'एक फाइल',projectFiles:'प्रोजेक्ट फाइल्स',settingsSaved:'भाषा निवड आपोआप जतन केली जाते.'},
- te:{...base,language:'భాష',original:'అసలు ఫైల్',patch:'ప్యాచ్ బ్లాక్స్',upload:'ఫైల్ అప్‌లోడ్',uploadPatch:'ప్యాచ్ అప్‌లోడ్',blocks:'బ్లాక్స్',errors:'లోపాలు',preflight:'ప్రీ-ఫ్లైట్',run:'అన్ని మార్పులను సురక్షితంగా ధృవీకరించి వర్తించండి',cancel:'రద్దు',result:'ఆమోదించబడిన ఫలితం',copy:'కాపీ',download:'డౌన్‌లోడ్',project:'ప్రాజెక్ట్ మోడ్',single:'ఒక ఫైల్',projectFiles:'ప్రాజెక్ట్ ఫైళ్లు',settingsSaved:'భాష ఎంపిక స్వయంచాలకంగా సేవ్ అవుతుంది.'},
- tr:{...base,language:'Dil',original:'Orijinal dosya',patch:'Yama blokları',upload:'Dosya yükle',uploadPatch:'Yama yükle',blocks:'Bloklar',errors:'Hatalar',preflight:'Ön kontrol',run:'Tüm değişiklikleri güvenli şekilde doğrula ve uygula',cancel:'İptal',result:'Onaylanan sonuç',copy:'Kopyala',download:'İndir',project:'Proje modu',single:'Tek dosya',projectFiles:'Proje dosyaları',settingsSaved:'Dil tercihi otomatik kaydedilir.'},
- ta:{...base,language:'மொழி',original:'அசல் கோப்பு',patch:'Patch தொகுதிகள்',upload:'கோப்பைப் பதிவேற்றவும்',uploadPatch:'Patch பதிவேற்றவும்',blocks:'தொகுதிகள்',errors:'பிழைகள்',preflight:'முன் சரிபார்ப்பு',run:'அனைத்து மாற்றங்களையும் பாதுகாப்பாக சரிபார்த்து பயன்படுத்தவும்',cancel:'ரத்துசெய்',result:'அங்கீகரிக்கப்பட்ட முடிவு',copy:'நகலெடு',download:'பதிவிறக்கு',project:'திட்ட முறை',single:'ஒரு கோப்பு',projectFiles:'திட்ட கோப்புகள்',settingsSaved:'மொழித் தேர்வு தானாகச் சேமிக்கப்படும்.'},
- vi:{...base,language:'Ngôn ngữ',original:'Tệp gốc',patch:'Khối bản vá',upload:'Tải tệp lên',uploadPatch:'Tải bản vá lên',blocks:'Khối',errors:'Lỗi',preflight:'Kiểm tra trước',run:'Xác thực và áp dụng an toàn mọi thay đổi',cancel:'Hủy',result:'Kết quả đã duyệt',copy:'Sao chép',download:'Tải xuống',project:'Chế độ dự án',single:'Một tệp',projectFiles:'Tệp dự án',settingsSaved:'Tùy chọn ngôn ngữ được tự động lưu.'},
- ko:{...base,language:'언어',original:'원본 파일',patch:'패치 블록',upload:'파일 업로드',uploadPatch:'패치 업로드',blocks:'블록',errors:'오류',preflight:'사전 검사',run:'모든 변경 사항을 안전하게 검증하고 적용',cancel:'취소',result:'승인된 결과',copy:'복사',download:'다운로드',project:'프로젝트 모드',single:'단일 파일',projectFiles:'프로젝트 파일',settingsSaved:'언어 설정이 자동 저장됩니다.'},
- it:{...base,language:'Lingua',original:'File originale',patch:'Blocchi patch',upload:'Carica file',uploadPatch:'Carica patch',blocks:'Blocchi',errors:'Errori',preflight:'Preflight',run:'Valida e applica tutte le modifiche in sicurezza',cancel:'Annulla',result:'Risultato approvato',copy:'Copia',download:'Scarica',project:'Modalità progetto',single:'File singolo',projectFiles:'File del progetto',settingsSaved:'La preferenza della lingua viene salvata automaticamente.'}
-};
-for(const [code] of LANGUAGES) if(!T[code]) T[code]={...base,language:LANGUAGES.find(x=>x[0]===code)?.[1]||code};
-export function getLanguage(){try{return localStorage.getItem('code-patcher-language')||DEFAULT_LANGUAGE}catch{return DEFAULT_LANGUAGE}}
-export function setLanguage(code){try{localStorage.setItem('code-patcher-language',code)}catch{}}
-export function getStrings(code){
-  const langDict = T[code] || T[DEFAULT_LANGUAGE];
-  return new Proxy(langDict, {
+
+export const DEFAULT_LANGUAGE = 'en';
+
+const dictionaries = { en, ar };
+
+export function getLanguage() {
+  try {
+    return localStorage.getItem('code-patcher-language') || DEFAULT_LANGUAGE;
+  } catch {
+    return DEFAULT_LANGUAGE;
+  }
+}
+
+export function setLanguage(code) {
+  try {
+    localStorage.setItem('code-patcher-language', code);
+  } catch {}
+}
+
+export function getStrings(code) {
+  const current = dictionaries[code] || dictionaries[DEFAULT_LANGUAGE] || en;
+  return new Proxy(current, {
     get(target, prop) {
-      if (prop in target) return target[prop];
-      return base[prop] || prop;
+      if (prop in target && target[prop]) return target[prop];
+      if (prop in en && en[prop]) return en[prop];
+      return ''; // لا تُرجع اسم المفتاح البرمجي أبداً
     }
   });
 }
-export function isRTL(code){return ['ar','ur'].includes(code)}
+
+export function isRTL(code) {
+  return ['ar', 'ur'].includes(code);
+}
