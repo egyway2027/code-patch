@@ -1,5 +1,5 @@
-import en from './locales/en';
-import ar from './locales/ar';
+import en from './langog/en';
+import ar from './langog/ar';
 
 export const LANGUAGES = [
   ['en', 'English', 'LTR'],
