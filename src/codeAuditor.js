@@ -28,7 +28,8 @@ export const AUDITOR_VERSION = "11.0.0";
 const MAX_FINDINGS = 300;
 
 function lineOf(text, index) {
-  return String(text ?? "").slice(0, Math.max(0, index)).split(/\r\n|\r|\n/).length;
+  const idx = Number.isFinite(index) ? Math.max(0, index) : 0;
+  return String(text ?? "").slice(0, idx).split(/\r\n|\r|\n/).length;
 }
 
 // Generic structural walk over a Babel AST: recurses into any own property that looks
@@ -61,17 +62,74 @@ const FS_DESTRUCTIVE_NAMES = new Set(["rmSync", "unlinkSync", "rmdirSync"]);
 // quoted literals are masked before rules run, so a string containing "eval(" does not
 // become a finding. These rules are advisory except for explicitly marked critical rules.
 function maskNonCode(source, language) {
-  let s = String(source ?? "");
-  // Preserve newlines so reported locations stay stable.
-  s = s.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, " "));
-  s = s.replace(/\/\/[^\n\r]*/g, m => " ".repeat(m.length));
-  if (language === "python") {
-    s = s.replace(/(^|\n)\s*#[^\n\r]*/g, m => m.replace(/[^\n]/g, " "));
-    s = s.replace(/('''[\s\S]*?'''|"""[\s\S]*?""")/g, m => m.replace(/[^\n]/g, " "));
+  const s = String(source ?? "");
+  const len = s.length;
+  const out = [];
+  let i = 0;
+  const isPython = language === "python";
+
+  while (i < len) {
+    const c = s[i];
+    const next = i + 1 < len ? s[i + 1] : "";
+
+    if (isPython && c === "#") {
+      while (i < len && s[i] !== "\n" && s[i] !== "\r") { out.push(" "); i++; }
+      continue;
+    }
+
+    if (!isPython && c === "/" && next === "/") {
+      out.push(" ", " "); i += 2;
+      while (i < len && s[i] !== "\n" && s[i] !== "\r") { out.push(" "); i++; }
+      continue;
+    }
+
+    if (!isPython && c === "/" && next === "*") {
+      out.push(" ", " "); i += 2;
+      while (i < len && !(s[i] === "*" && i + 1 < len && s[i + 1] === "/")) {
+        out.push(s[i] === "\n" || s[i] === "\r" ? s[i] : " "); i++;
+      }
+      if (i < len) { out.push(" ", " "); i += 2; }
+      continue;
+    }
+
+    if (isPython && (s.startsWith('"""', i) || s.startsWith("'''", i))) {
+      const quote = s.slice(i, i + 3);
+      out.push(" ", " ", " "); i += 3;
+      while (i < len && !s.startsWith(quote, i)) {
+        if (s[i] === "\\" && i + 1 < len) {
+          out.push(s[i] === "\n" || s[i] === "\r" ? s[i] : " ");
+          out.push(s[i + 1] === "\n" || s[i + 1] === "\r" ? s[i + 1] : " ");
+          i += 2;
+        } else {
+          out.push(s[i] === "\n" || s[i] === "\r" ? s[i] : " "); i++;
+        }
+      }
+      if (i < len) { out.push(" ", " ", " "); i += 3; }
+      continue;
+    }
+
+    if (c === '"' || c === "'" || (!isPython && c === "`")) {
+      const quote = c;
+      out.push(" "); i++;
+      while (i < len && s[i] !== quote) {
+        if (s[i] === "\\" && i + 1 < len) {
+          out.push(s[i] === "\n" || s[i] === "\r" ? s[i] : " ");
+          out.push(s[i + 1] === "\n" || s[i + 1] === "\r" ? s[i + 1] : " ");
+          i += 2;
+        } else if ((quote === '"' || quote === "'") && (s[i] === "\n" || s[i] === "\r")) {
+          break;
+        } else {
+          out.push(s[i] === "\n" || s[i] === "\r" ? s[i] : " "); i++;
+        }
+      }
+      if (i < len && s[i] === quote) { out.push(" "); i++; }
+      continue;
+    }
+
+    out.push(c);
+    i++;
   }
-  // Mask common quoted strings; keep the quote-free structure and line count.
-  s = s.replace(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/g, m => m.replace(/[^\n]/g, " "));
-  return s;
+  return out.join("");
 }
 
 function scanNonJsSecurity(source, language) {
@@ -93,7 +151,7 @@ function scanNonJsSecurity(source, language) {
     rules.push([/\b(?:memcpy|memmove)\s*\(/g, "C-MEMORY-API", "warning", "medium", "استدعاء memory API حساس؛ تحقق من حدود المصدر والوجهة."]);
   } else if (language === "go") {
     rules.push([/\bexec\s*\.\s*Command(?:Context)?\s*\(/g, "GO-COMMAND", "high", "high", "os/exec Command ينفذ عملية نظام."]);
-    rules.push([/\b(?:os\.)?(?:Remove|RemoveAll)\s*\(/g, "GO-FS-DESTRUCTIVE", "high", "high", "حذف ملفات/مجلدات في Go."]);
+    rules.push([/\bos\.(?:Remove|RemoveAll)\s*\(/g, "GO-FS-DESTRUCTIVE", "high", "high", "حذف ملفات/مجلدات في Go."]);
     rules.push([/\b(?:gob|yaml|json)\.(?:NewDecoder|Unmarshal)\s*\(/g, "GO-DESERIALIZE", "warning", "medium", "فك/تحليل بيانات خارجية؛ تحقق من الحدود والتحقق من المدخلات."]);
   }
   const findings=[];
@@ -123,6 +181,8 @@ function scanAst(ast, source) {
       const name = calleeName(node.callee);
       if (node.callee.type === "Identifier" && node.callee.name === "eval") {
         push(node, { code: "JS-EVAL", severity: "critical", confidence: "certain", message: "استدعاء eval() فعلي: تنفيذ كود ديناميكي غير موثوق." });
+      } else if (node.callee.type === "Identifier" && node.callee.name === "Function") {
+        push(node, { code: "JS-NEW-FUNCTION", severity: "critical", confidence: "certain", message: "استدعاء Function(): إنشاء وتنفيذ كود ديناميكي." });
       } else if (name && COMMAND_EXEC_NAMES.has(name)) {
         push(node, { code: "NODE-COMMAND", severity: "high", confidence: "high", message: `استدعاء ${name}(): تنفيذ أمر نظام.` });
       } else if (name && FS_DESTRUCTIVE_NAMES.has(name)) {
@@ -135,14 +195,23 @@ function scanAst(ast, source) {
       push(node, { code: "DOM-INNERHTML", severity: "high", confidence: "high", message: "تعديل innerHTML مباشرة؛ قد يسبب XSS إن كان المصدر غير موثوق." });
     } else if (node.type === "JSXAttribute" && node.name?.name === "dangerouslySetInnerHTML") {
       push(node, { code: "REACT-RAW-HTML", severity: "high", confidence: "high", message: "استخدام dangerouslySetInnerHTML؛ راجع مصدر HTML والتعقيم." });
-    } else if ((node.type === "ObjectProperty" || node.type === "Property") && node.key?.type === "Identifier" &&
-               SECRET_KEY_NAME.test(node.key.name) && node.value?.type === "StringLiteral" &&
+    } else if ((node.type === "ObjectProperty" || node.type === "Property") && node.key &&
+               (node.key.type === "Identifier" ? SECRET_KEY_NAME.test(node.key.name) : node.key.type === "StringLiteral" ? SECRET_KEY_NAME.test(node.key.value) : false) &&
+               node.value?.type === "StringLiteral" &&
                node.value.value.length >= 8 && !PLACEHOLDER_VALUE.test(node.value.value)) {
-      push(node, { code: "HARDCODED-SECRET", severity: "warning", confidence: "medium", message: `قيمة نصية طويلة على حقل باسم "${node.key.name}"؛ تحقق أنه ليس سرًا فعليًا مكتوبًا في الكود.` });
+      const kName = node.key.name || node.key.value;
+      push(node, { code: "HARDCODED-SECRET", severity: "warning", confidence: "medium", message: `قيمة نصية طويلة على حقل باسم "${kName}"؛ تحقق أنه ليس سرًا فعليًا مكتوبًا في الكود.` });
     } else if (node.type === "VariableDeclarator" && node.id?.type === "Identifier" &&
                SECRET_KEY_NAME.test(node.id.name) && node.init?.type === "StringLiteral" &&
                node.init.value.length >= 8 && !PLACEHOLDER_VALUE.test(node.init.value)) {
       push(node, { code: "HARDCODED-SECRET", severity: "warning", confidence: "medium", message: `قيمة نصية طويلة في متغيّر باسمه "${node.id.name}"؛ تحقق أنه ليس سرًا فعليًا مكتوبًا في الكود.` });
+    } else if (node.type === "AssignmentExpression" && node.left &&
+               ((node.left.type === "Identifier" && SECRET_KEY_NAME.test(node.left.name)) ||
+                (node.left.type === "MemberExpression" && !node.left.computed && node.left.property?.type === "Identifier" && SECRET_KEY_NAME.test(node.left.property.name))) &&
+               node.right?.type === "StringLiteral" &&
+               node.right.value.length >= 8 && !PLACEHOLDER_VALUE.test(node.right.value)) {
+      const vName = node.left.type === "Identifier" ? node.left.name : node.left.property.name;
+      push(node, { code: "HARDCODED-SECRET", severity: "warning", confidence: "medium", message: `قيمة نصية طويلة في إسناد لمتغيّر أو حقل باسم "${vName}"؛ تحقق أنه ليس سرًا فعليًا مكتوبًا في الكود.` });
     } else if (node.type === "BinaryExpression" && node.operator === "+") {
       const lit = node.left?.type === "StringLiteral" ? node.left : node.right?.type === "StringLiteral" ? node.right : null;
       const other = lit === node.left ? node.right : node.left;
@@ -172,24 +241,26 @@ export function auditCodeChange({ before, after, fileName = "source.txt", fileTy
 
   let findings = [];
   let scanned = false;
-  if (JS_LIKE.has(fileType)) {
-    const { ast, error } = parseJsAst(newCode, fileType);
+  const normType = String(fileType || "text").toLowerCase();
+  if (JS_LIKE.has(normType)) {
+    const { ast, error } = parseJsAst(newCode, normType);
     if (!error) { findings = scanAst(ast, newCode); scanned = true; }
-  } else if (["python","java","c","h","cc","cpp","cxx","hpp","hh","hxx","go"].includes(fileType)) {
-    const normalizedLanguage = fileType === "h" ? "c" : ["cc","cpp","cxx","hpp","hh","hxx"].includes(fileType) ? "cpp" : fileType;
+  } else if (["python","java","c","h","cc","cpp","cxx","hpp","hh","hxx","go"].includes(normType)) {
+    const normalizedLanguage = normType === "h" ? "c" : ["cc","cpp","cxx","hpp","hh","hxx"].includes(normType) ? "cpp" : normType;
     findings = scanNonJsSecurity(newCode, normalizedLanguage);
     scanned = true;
   }
 
-  const counts = { critical: 0, high: 0, warning: 0 };
+  const counts = { critical: 0, high: 0, warning: 0, medium: 0, low: 0 };
   for (const f of findings) counts[f.severity] = (counts[f.severity] || 0) + 1;
   const blocking = strict ? findings.filter(f => f.severity === "critical") : [];
-  const risk = counts.critical ? "CRITICAL" : counts.high ? "HIGH" : counts.warning ? "MEDIUM" : "LOW";
+  const hasWarnings = (counts.critical || counts.high || counts.warning || counts.medium);
+  const risk = counts.critical ? "CRITICAL" : counts.high ? "HIGH" : (counts.warning || counts.medium) ? "MEDIUM" : "LOW";
 
   return {
     version: AUDITOR_VERSION,
     ok: blocking.length === 0,
-    decision: blocking.length ? "BLOCKED" : (counts.critical || counts.high || counts.warning) ? "WARNING" : "SAFE",
+    decision: blocking.length ? "BLOCKED" : hasWarnings ? "WARNING" : "SAFE",
     risk,
     file: { name: fileName, type: fileType },
     scanned, // false = this file type has no AST-based security scan (non-JS); absence of findings there is not a clean bill of health
