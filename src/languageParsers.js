@@ -3,12 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import cp from "node:child_process";
-import { fileURLToPath } from "node:url";
 
 const MAX_SOURCE=5_000_000;
 const TEMP_ROOT=path.join(os.tmpdir(),"code-patcher-v11");
 const EXT=new Set([".java",".c",".h",".cc",".cpp",".cxx",".hpp",".hh",".hxx",".go"]);
-const currentFilePath = fileURLToPath(import.meta.url);
+const currentFilePath = decodeURIComponent(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
 const JAVA_HELPER=path.resolve(path.dirname(currentFilePath),"..","server","lang-ast","java-ast.java");
 const GO_HELPER=path.resolve(path.dirname(currentFilePath),"..","server","lang-ast","go-ast.go");
 function exists(c){const r=cp.spawnSync(c,[c==="gofmt"?"-h":"--version"],{encoding:"utf8",timeout:5000,stdio:["ignore","pipe","pipe"]});return !r.error;}
@@ -83,8 +82,6 @@ function clangSnapshot(root,language,sourceFile,sourceCode){
   const clean=entities.filter(e=>{const k=`${e.kind}|${e.name}|${e.location?.line??""}`;if(seen.has(k))return false;seen.add(k);return true;});
   return {language,entities:clean,imports,exports:[]};
 }
-let JAVA_CACHE=null;
-let GO_CACHE=null;
 function javaHelperClasses(){
   if(!exists('javac')) return null;
   const dir=path.join(TEMP_ROOT,'java-helper-cache'); fs.mkdirSync(dir,{recursive:true,mode:0o700});
@@ -102,7 +99,7 @@ function javaHelperClasses(){
     const c=cp.spawnSync('javac',['-proc:none','-Xlint:none','-encoding','UTF-8','-d',dir,helperTarget],{encoding:'utf8',timeout:30000,maxBuffer:4*1024*1024});
     if(c.status!==0) return {error:'Failed to compile trusted AST helper: '+(c.stderr||c.stdout)};
   }
-  JAVA_CACHE=dir; return dir;
+  return dir;
 }
 function javaAst(code,fileName){
   const classes=javaHelperClasses(); if(!classes) return fail('java','javac','javac unavailable',{unavailable:true}); if(classes.error) return fail('java','javac-tree-api',classes.error);
@@ -136,7 +133,7 @@ function goHelperBinary(){
     const b=cp.spawnSync('go',['build','-o',bin,GO_HELPER],{encoding:'utf8',timeout:60000,maxBuffer:4*1024*1024});
     if(b.status!==0)return {error:(b.stderr||b.stdout||'Go AST helper build failed').trim()};
   }
-  GO_CACHE=bin; return bin;
+  return bin;
 }
 function goAst(code,fileName){
   const bin=goHelperBinary(); if(!bin)return fail('go','go/parser','go unavailable',{unavailable:true}); if(bin.error)return fail('go','go/parser',bin.error);
@@ -147,6 +144,9 @@ function goAst(code,fileName){
       const x=JSON.parse(r.stdout);
       const msg = x.message || x.error || (x.ok ? "Go parsed with go/parser without executing source." : "Go syntax error");
       if(!x.ok) return fail('go','go/parser',msg,{line:x.line??null,column:x.column??null,unavailable:x.unavailable===true});
+      if(x.snapshot&&Array.isArray(x.snapshot.entities)){
+        x.snapshot.entities=x.snapshot.entities.map(e=>({...e,location:{line:e.line??null,column:null}}));
+      }
       return {ok:true,language:'go',parser:'go/parser',strength:'real-ast',message:msg,line:x.line??null,column:x.column??null,snapshot:x.snapshot};
     }catch{return fail('go','go/parser','Go AST helper returned invalid JSON')}
   } finally {clean(t.dir);}
