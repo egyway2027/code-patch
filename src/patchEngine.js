@@ -561,21 +561,100 @@ function validateJavaScript(code, type) {
 
 function validatePythonStructural(code) {
   const s = String(code ?? "");
-  const structural = structuralScan(s.replace(/(^|\n)\s*#.*(?=\n|$)/g, "$1"));
-  if (!structural.ok) return { ok: false, strength: "structural", message: structural.reason };
-  const lines = s.split(/\r\n|\r|\n/);
-  const indents = [0];
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
-    if (!raw.trim() || /^\s*#/.test(raw)) continue;
-    const leading = raw.match(/^[ \t]*/)?.[0] || "";
-    if (leading.includes("\t") && leading.includes(" ")) return { ok: false, strength: "structural", message: `خلط tabs وspaces في السطر ${i + 1}.` };
-    const width = leading.includes("\t") ? leading.replace(/\t/g, "    ").length : leading.length;
-    if (width > indents[indents.length - 1]) indents.push(width);
-    else while (width < indents[indents.length - 1] && indents.length > 1) indents.pop();
-    if (width !== indents[indents.length - 1]) return { ok: false, strength: "structural", message: `Indentation غير متسقة في السطر ${i + 1}.` };
+  const stack = [];
+  let i = 0;
+  const len = s.length;
+  let line = 1, col = 1;
+
+  while (i < len) {
+    const c = s[i];
+    const next2 = s.slice(i, i + 3);
+
+    // 1. معالجة السلاسل النصية الثلاثية (Docstrings)
+    if (next2 === '"""' || next2 === "'''") {
+      const q = next2;
+      const startLine = line;
+      i += 3; col += 3;
+      let closed = false;
+      while (i < len) {
+        if (s.slice(i, i + 3) === q) {
+          closed = true;
+          i += 3; col += 3;
+          break;
+        }
+        if (s[i] === "\\" && i + 1 < len) {
+          if (s[i + 1] === "\n") { line++; col = 1; } else { col += 2; }
+          i += 2;
+        } else {
+          if (s[i] === "\n") { line++; col = 1; } else { col++; }
+          i++;
+        }
+      }
+      if (!closed) {
+        return { ok: false, strength: "structural", message: `سلسلة نصية ثلاثية (docstring) غير مغلقة بدأت في السطر ${startLine}.` };
+      }
+      continue;
+    }
+
+    // 2. معالجة السلاسل النصية العادية ذات السطر الواحد
+    if (c === '"' || c === "'") {
+      const q = c;
+      const startLine = line;
+      i++; col++;
+      let closed = false;
+      while (i < len) {
+        if (s[i] === "\\" && i + 1 < len) {
+          if (s[i + 1] === "\n") { line++; col = 1; } else { col += 2; }
+          i += 2;
+        } else if (s[i] === q) {
+          closed = true;
+          i++; col++;
+          break;
+        } else if (s[i] === "\n" || s[i] === "\r") {
+          break;
+        } else {
+          col++; i++;
+        }
+      }
+      if (!closed) {
+        return { ok: false, strength: "structural", message: `سلسلة نصية غير مغلقة في السطر ${startLine}.` };
+      }
+      continue;
+    }
+
+    // 3. تجاوز تعليقات بايثون (#)
+    if (c === "#") {
+      while (i < len && s[i] !== "\n" && s[i] !== "\r") {
+        i++;
+      }
+      continue;
+    }
+
+    // 4. فحص توازن الأقواس الحقيقي (), [], {}
+    if (c === "(" || c === "[" || c === "{") {
+      stack.push({ char: c, line, col });
+    } else if (c === ")" || c === "]" || c === "}") {
+      if (stack.length === 0) {
+        return { ok: false, strength: "structural", message: `قوس إغلاق '${c}' غير متوقع في السطر ${line}.` };
+      }
+      const top = stack.pop();
+      const expected = c === ")" ? "(" : c === "]" ? "[" : "{";
+      if (top.char !== expected) {
+        return { ok: false, strength: "structural", message: `قوس غير متطابق: تم فتح '${top.char}' في السطر ${top.line} وإغلاقه بـ '${c}' في السطر ${line}.` };
+      }
+    }
+
+    if (c === "\n") { line++; col = 1; }
+    else { col++; }
+    i++;
   }
-  return { ok: true, strength: "structural", message: "Python اجتاز الفحص البنيوي المحافظ (لا يوجد Parser AST حقيقي متاح)." };
+
+  if (stack.length > 0) {
+    const top = stack[stack.length - 1];
+    return { ok: false, strength: "structural", message: `قوس '${top.char}' مفتوح في السطر ${top.line} ولم يتم إغلاقه.` };
+  }
+
+  return { ok: true, strength: "structural", message: "Python اجتاز الفحص البنيوي بنجاح (وضع العمل الاحتياطي بدون خادم)." };
 }
 
 const PYTHON_AST_ENDPOINT = "/api/python-ast";
