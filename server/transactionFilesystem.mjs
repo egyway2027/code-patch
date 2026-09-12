@@ -48,10 +48,15 @@ export async function assertSafePath(filePath,root,journalDir=null){
 
   const targetStat = await fs.lstat(resolved).catch(()=>null);
   if(targetStat?.isSymbolicLink()) throw new Error(`Refusing to write through symbolic link: ${filePath}`);
-  // Resolve the parent so a symlink anywhere in the directory chain cannot escape.
-  const parent=path.dirname(resolved);
-  const parentExists=await exists(parent);
-  const parentReal=await fs.realpath(parentExists?parent:workspace);
+  if(targetStat?.isDirectory()) throw new Error(`Refusing to target a directory: ${filePath}`);
+  // Resolve the parent chain upwards to the lowest existing ancestor to prevent symlink traversal.
+  let curr=path.dirname(resolved);
+  while(curr!==workspace && !(await exists(curr))){
+    const next=path.dirname(curr);
+    if(next===curr) break;
+    curr=next;
+  }
+  const parentReal=await fs.realpath(curr);
   const parentRel=path.relative(workspace,parentReal);
   if(parentRel.startsWith('..')||path.isAbsolute(parentRel)) throw new Error(`Path escapes workspace through symlink: ${filePath}`);
   return resolved;
@@ -72,11 +77,11 @@ async function writeAtomic(filePath,content,{expectedCurrentHash=null,metadata=n
   const tmp=path.join(dir,`.${path.basename(filePath)}.code-patcher-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.tmp`);
   let fh;
   try{
-    await fs.writeFile(tmp,content,{encoding:'utf8',mode:metadata?.mode ?? 0o600});
-    if(metadata?.mode!==undefined) await fs.chmod(tmp,metadata.mode & 0o7777).catch(()=>{});
+    await fs.writeFile(tmp,content,{encoding:'utf8',mode:0o600});
     fh=await fs.open(tmp,'r+');
     await fh.sync();
     await fh.close(); fh=null;
+    if(metadata?.mode!==undefined) await fs.chmod(tmp,metadata.mode & 0o7777).catch(()=>{});
     await fs.rename(tmp,filePath);
     await fsyncDirectory(dir);
   }finally{
@@ -139,7 +144,15 @@ async function acquireLock(journalDir,transactionId){
     try{
       const meta=JSON.parse(await fs.readFile(lock,'utf8'));
       let alive=false;if(Number.isInteger(meta?.pid)&&meta.pid>0){try{process.kill(meta.pid,0);alive=true}catch{}}
-      if(!alive){await fs.rm(lock,{force:true});const fh=await fs.open(lock,'wx',0o600);await fh.writeFile(JSON.stringify({transactionId,pid:process.pid,createdAt:new Date().toISOString(),reclaimed:true}));await fh.sync();return {fh,lock};}
+      if(!alive){
+        const currentMeta=JSON.parse(await fs.readFile(lock,'utf8').catch(()=>'{}'));
+        if(currentMeta?.pid===meta?.pid){
+          await fs.rm(lock,{force:true});
+          const fh=await fs.open(lock,'wx',0o600);
+          await fh.writeFile(JSON.stringify({transactionId,pid:process.pid,createdAt:new Date().toISOString(),reclaimed:true}));await fh.sync();
+          return {fh,lock};
+        }
+      }
     }catch{}
     throw new Error('Another transaction is currently committing this workspace.');
   }
@@ -190,6 +203,8 @@ export async function recoverTransactions({workspaceRoot=process.cwd(),journalDi
       if(allOriginal){record.status='ROLLED_BACK';record.committed=false;record.rolledBack=true;record.recoveredAt=new Date().toISOString();record.recoveryAction='already-original';await writeJournal(journalDir,record);recovered.push(id);continue;}
       const committed=states.filter(x=>x.hash===x.f.resultHash).map(x=>({f:x.f,i:x.i})).reverse();
       let safe=true,restored=[];
+      const unknownFiles=states.filter(x=>x.hash!==x.f.resultHash && x.hash!==x.f.originalHash);
+      if(unknownFiles.length>0) safe=false;
       for(const item of committed){const r=await safeRestore(journalDir,record,item,workspaceRoot);if(!r.ok){safe=false;break}restored.push(r.fileName)}
       if(safe){record.status='ROLLED_BACK';record.committed=false;record.rolledBack=true;record.recoveredAt=new Date().toISOString();record.recoveryAction='rolled-back-committed-files-only';record.restored=restored;await writeJournal(journalDir,record);recovered.push(id)}
       else {record.status='RECOVERY_REQUIRED';record.recoveryRequired=true;record.recoveredAt=new Date().toISOString();record.recoveryAction='manual-review-required';await writeJournal(journalDir,record);needsReview.push(id)}
@@ -254,7 +269,18 @@ export async function commitPreparedTransaction(prepared,{workspaceRoot=process.
     // Only restore files whose journal status confirms they were committed, plus an in-flight
     // file if its current hash equals its expected post hash. Never overwrite an external value.
     const journalNow=await readJournal(journalDir,prepared.transactionId);
-    const candidates=(journalNow?.results||[]).map((f,i)=>({f,i})).filter(({f})=>f.status==='COMMITTED_FILE');
+    const candidates=[];
+    for(let i=0;i<(journalNow?.results||[]).length;i++){
+      const f=journalNow.results[i];
+      if(f.status==='COMMITTED_FILE'){
+        candidates.push({f,i});
+      } else if(snapshots[i]){
+        try{
+          const {hash}=await fileHash(snapshots[i].target);
+          if(hash===f.resultHash) candidates.push({f,i});
+        }catch{}
+      }
+    }
     if(journalNow){
       for(const item of candidates.reverse()){
         try{const r=await safeRestore(journalDir,journalNow,item,workspaceRoot);if(!r.ok){rollbackOk=false;break}restored.push(r.fileName)}catch{rollbackOk=false;break}
@@ -275,6 +301,8 @@ export async function commitPreparedTransaction(prepared,{workspaceRoot=process.
 export async function rollbackCommittedTransaction(record,{workspaceRoot=process.cwd(),journalDir=path.join(workspaceRoot,'.code-patcher-transactions')}={}){
   if(!record?.transactionId||!Array.isArray(record.results))return reject('Invalid transaction record.');
   if(!TRANSACTION_ID_RE.test(record.transactionId))return reject('Invalid transaction id.');
+  const existing=await readJournal(journalDir,record.transactionId);
+  if(existing?.status==='ROLLED_BACK'||record.status==='ROLLED_BACK')return {...(existing||record),ok:true,prepared:false,committed:false,rolledBack:true,status:'ROLLED_BACK',message:'Transaction already rolled back (idempotent replay).'};
   const lock=await acquireLock(journalDir,record.transactionId).catch(e=>({error:e}));if(lock?.error)return reject(lock.error.message,{transactionId:record.transactionId});
   try{
     const targets=committedIndexes(record);
