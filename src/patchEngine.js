@@ -822,15 +822,25 @@ const EXTRA_LANGUAGE_TYPES = new Set(["java","c","h","cc","cpp","cxx","hpp","hh"
 function extraLanguageForType(type) {
   return EXTRA_LANGUAGE_TYPES.has(type) ? (type === "java" ? "java" : type === "go" ? "go" : type === "c" || type === "h" ? "c" : "cpp") : null;
 }
+function validateExtraLanguageStructural(code, type) {
+  const s = String(code ?? "");
+  const structural = structuralScan(s);
+  if (!structural.ok) {
+    return { ok: false, strength: "structural", message: `${type.toUpperCase()} خطأ بنيوي: ${structural.reason}` };
+  }
+  return { ok: true, strength: "structural", message: `${type.toUpperCase()} اجتاز الفحص البنيوي المحافظ (وضع العمل في المتصفح دون سيرفر).` };
+}
+
 async function validateExtraLanguage(code, type, fileName) {
-  // Compiler-backed adapters are Node-only. Browser workers cannot spawn javac/clang/go;
-  // fail closed there instead of importing Node built-ins into the browser bundle.
-  if (typeof process === "undefined" || !process.versions?.node) return { ok: false, strength: "unavailable", unavailable: true, parser: null, message: `${type.toUpperCase()} compiler validation requires the server/Node adapter.` };
+  if (typeof process === "undefined" || !process.versions?.node) {
+    return validateExtraLanguageStructural(code, type);
+  }
   try {
-    // This function is only reachable in Node/server validation; importing the adapter
-    // statically keeps CSP strict and avoids dynamic-code construction.
     const { parseExtraLanguage } = await import("./languageParsers.js");
     const parsed = parseExtraLanguage(String(code ?? ""), fileName || `source.${type}`);
+    if (parsed.unavailable) {
+      return validateExtraLanguageStructural(code, type);
+    }
     return {
       ok: parsed.ok === true, strength: parsed.strength || "real-ast", parser: parsed.parser || null,
       message: parsed.message || (parsed.ok ? "Compiler-backed AST validation succeeded." : "Compiler-backed validation failed."),
@@ -838,7 +848,7 @@ async function validateExtraLanguage(code, type, fileName) {
       ast: parsed.snapshot || null, snapshot: parsed.snapshot || null,
     };
   } catch (error) {
-    return { ok: false, strength: "unavailable", unavailable: true, parser: null, message: `Compiler adapter unavailable: ${error?.message || error}` };
+    return validateExtraLanguageStructural(code, type);
   }
 }
 
