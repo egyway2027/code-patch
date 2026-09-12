@@ -29,11 +29,12 @@ export async function prepareSingleFileTransaction(input, { policy, mode } = {})
   if (parsed.errors.length || !parsed.blocks.length) return reject('Patch preflight failed.', { parsed });
   const originalHash = await sha256(source);
   if (input?.expectedOriginalHash && input.expectedOriginalHash !== originalHash) return reject('External mutation detected before patching.', { reason:'source-hash-mismatch', originalHash });
-  const applied = await analyzeAndApply(source, parsed.blocks, { mode, atomic:true, allowReviewApply:false });
+  const allowReview = input?.allowReviewApply === true || input?.reviewApproved === true;
+  const applied = await analyzeAndApply(source, parsed.blocks, { mode, atomic:true, allowReviewApply:allowReview });
   if (!applied.ok || applied.rolledBack || applied.results.length !== parsed.blocks.length) return reject('Patch apply failed; rollback enforced.', { parsed, originalHash, applied:{ ...applied, code:source, rolledBack:true } });
-  const verification = verifyTransaction(source, applied.code, parsed.blocks, applied.results, { mode });
+  const verification = verifyTransaction(source, applied.code, parsed.blocks, applied.results, { mode, allowReviewApply:allowReview });
   if (!verification.ok || verification.appliedCount !== parsed.blocks.length) return reject('Replay verification failed; rollback enforced.', { parsed, verification, code:source });
-  const planned = createPatchPlan(source, parsed.blocks, { mode, allowReviewApply:false });
+  const planned = createPatchPlan(source, parsed.blocks, { mode, allowReviewApply:allowReview });
   if (!planned.ok || planned.code !== applied.code) return reject('Immutable patch plan verification failed.', { planned, code:source });
   const validation = await validateCode(applied.code, type, fileName);
   if (p.validation.requireParse && !validation.ok) return reject('Syntax/compiler validation failed; rollback enforced.', { validation, code:source });
@@ -44,7 +45,7 @@ export async function prepareSingleFileTransaction(input, { policy, mode } = {})
   const integrity = await buildIntegrity(source, applied.code, parsed.blocks);
   const integrityOk = integrity.resultHash === await sha256(applied.code);
   if (p.validation.requireIntegrity && !integrityOk) return reject('Integrity verification failed; rollback enforced.', { integrity, code:source });
-  const finalVerification = verifyUntouched(source, applied.code, parsed.blocks, applied.results, { mode });
+  const finalVerification = verifyUntouched(source, applied.code, parsed.blocks, applied.results, { mode, allowReviewApply:allowReview });
   if (p.validation.requireReplay && !finalVerification.ok) return reject('Untouched-region verification failed.', { verification:finalVerification, code:source });
   const patchPolicyHash = await sha256(JSON.stringify(p));
   const planSnapshot = stablePlanSnapshot({
@@ -69,7 +70,7 @@ export async function prepareProjectTransaction(entries, { policy, mode, reviewA
   const staged = [], before = [];
   for (const entry of files) {
     before.push({ fileName:entry.fileName, content:entry.content, fileType:entry.fileType, filePath:entry.filePath || null });
-    const r = await prepareSingleFileTransaction({ ...entry, reviewApproved: reviewApproved || entry.reviewApproved }, { policy:p, mode });
+    const r = await prepareSingleFileTransaction({ ...entry, reviewApproved: reviewApproved || entry.reviewApproved, allowReviewApply: reviewApproved || entry.reviewApproved || entry.allowReviewApply }, { policy:p, mode });
     if (!r.ok) return { ...r, stage:staged, rolledBack:true };
     staged.push(r);
   }
@@ -80,5 +81,6 @@ export async function prepareProjectTransaction(entries, { policy, mode, reviewA
   const planSnapshot = staged.map(x=>({fileName:x.fileName,filePath:x.filePath||null,fileType:x.fileType,originalHash:x.originalHash,resultHash:x.resultHash,planHash:x.planHash,patchPlan:x.planSnapshot}));
   const planSetHash = await sha256(JSON.stringify(planSnapshot));
   const transactionId = await sha256(JSON.stringify({ schemaVersion:2, files:before.map(x=>x.fileName), plans:planSnapshot, planSetHash }));
-  return { ok:true, prepared:true, committed:false, rolledBack:false, transactionId, planHash:await sha256(JSON.stringify({schemaVersion:2, planSnapshot, planSetHash})), planSnapshot, planSetHash, results:staged.map(x=>({ fileName:x.fileName, fileType:x.fileType, filePath:x.filePath, originalContent:x.source, code:x.code, validation:x.validation, audit:x.audit, intelligence:x.intelligence, securityPolicy:x.securityPolicy, integrity:x.integrity, verification:x.verification, diff:x.diff, originalHash:x.originalHash, resultHash:x.resultHash, planHash:x.planHash, planSnapshot:x.planSnapshot, committed:false })), impact, impactPolicy, policy:p, message:'Transaction prepared and verified; filesystem has not been modified.' };
+  const planHash = await sha256(JSON.stringify(planSnapshot));
+  return { ok:true, prepared:true, committed:false, rolledBack:false, transactionId, planHash, planSnapshot, planSetHash, results:staged.map(x=>({ fileName:x.fileName, fileType:x.fileType, filePath:x.filePath, originalContent:x.source, code:x.code, validation:x.validation, audit:x.audit, intelligence:x.intelligence, securityPolicy:x.securityPolicy, integrity:x.integrity, verification:x.verification, diff:x.diff, originalHash:x.originalHash, resultHash:x.resultHash, planHash:x.planHash, planSnapshot:x.planSnapshot, committed:false })), impact, impactPolicy, policy:p, message:'Transaction prepared and verified; filesystem has not been modified.' };
 }
