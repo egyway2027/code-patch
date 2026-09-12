@@ -99,55 +99,81 @@ def security_findings(tree):
         if isinstance(node, ast.Call):
             dotted = call_dotted_name(node)
             fname = dotted.split(".")[-1] if dotted else None
-            if isinstance(node.func, ast.Name) and node.func.id in ("eval", "exec"):
-                push(node, "PY-EVAL-EXEC", "critical", f"استدعاء {node.func.id}() فعلي: تنفيذ كود ديناميكي غير موثوق.")
+            if (isinstance(node.func, ast.Name) and node.func.id in ("eval", "exec")) or dotted in ("builtins.eval", "builtins.exec", "__builtins__.eval", "__builtins__.exec"):
+                push(node, "PY-EVAL-EXEC", "critical", f"استدعاء {fname}() فعلي: تنفيذ كود ديناميكي غير موثوق.")
             elif dotted == "os.system":
                 push(node, "PY-OS-SYSTEM", "high", "استدعاء os.system(): تنفيذ أمر نظام عبر shell.")
             elif dotted in ("subprocess.run", "subprocess.call", "subprocess.Popen", "subprocess.check_output") and has_keyword_true(node, "shell"):
                 push(node, "PY-SUBPROCESS-SHELL", "high", f"استدعاء {dotted}(..., shell=True): تنفيذ أمر عبر shell، خطر حقن أوامر إن كان المدخل غير موثوق.")
             elif dotted in ("pickle.load", "pickle.loads"):
                 push(node, "PY-PICKLE-LOAD", "high", f"استدعاء {dotted}(): فك تسلسل بيانات غير موثوقة قد ينفذ كودًا عشوائيًا.")
-            elif dotted == "yaml.load" and not has_keyword_true(node, "Loader"):
-                # yaml.load without an explicit Loader defaults to the unsafe loader in PyYAML < 5.1.
-                has_loader_kw = any(kw.arg == "Loader" for kw in node.keywords or [])
-                if not has_loader_kw:
+            elif dotted == "yaml.load":
+                has_loader = len(node.args) >= 2 or any(kw.arg == "Loader" for kw in node.keywords or [])
+                if not has_loader:
                     push(node, "PY-YAML-UNSAFE-LOAD", "high", "استدعاء yaml.load() بدون Loader صريح؛ استخدم yaml.safe_load().")
             elif fname in ("rmtree",) and dotted and dotted.startswith("shutil"):
                 push(node, "FS-DESTRUCTIVE", "high", "استدعاء shutil.rmtree(): حذف متكرر من نظام الملفات.")
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
             for t in targets:
-                if isinstance(t, ast.Name) and t.id.lower() in SECRET_KEY_NAMES and looks_like_secret_value(node.value):
-                    push(node, "HARDCODED-SECRET", "warning", f'قيمة نصية طويلة في متغيّر باسمه "{t.id}"؛ تحقق أنه ليس سرًا فعليًا مكتوبًا في الكود.')
+                name = t.id if isinstance(t, ast.Name) else (t.attr if isinstance(t, ast.Attribute) else None)
+                if name and name.lower() in SECRET_KEY_NAMES and looks_like_secret_value(node.value):
+                    push(node, "HARDCODED-SECRET", "warning", f'قيمة نصية طويلة في متغيّر باسمه "{name}"؛ تحقق أنه ليس سرًا فعليًا مكتوبًا في الكود.')
+        elif isinstance(node, ast.Dict):
+            for k, v in zip(node.keys, node.values):
+                if isinstance(k, ast.Constant) and isinstance(k.value, str) and k.value.lower() in SECRET_KEY_NAMES and looks_like_secret_value(v):
+                    push(node, "HARDCODED-SECRET", "warning", f'قيمة نصية طويلة في مفتاح قاموس باسم "{k.value}"؛ تحقق أنه ليس سرًا فعليًا مكتوبًا في الكود.')
 
     return findings
 
 
+def extract_params(n):
+    a = n.args
+    params = [param_name(x) for x in list(a.posonlyargs) + list(a.args)]
+    if a.vararg:
+        params.append("*" + a.vararg.arg)
+    params += [param_name(x) for x in a.kwonlyargs]
+    if a.kwarg:
+        params.append("**" + a.kwarg.arg)
+    return params
+
+
 def snapshot(tree):
     functions, classes, imports, exports = [], [], [], []
+
+    def walk_scope(node, parent_class=None):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                fn_item = {
+                    "name": child.name,
+                    "params": extract_params(child),
+                    "line": child.lineno,
+                    "async": isinstance(child, ast.AsyncFunctionDef),
+                }
+                if parent_class:
+                    fn_item["class"] = parent_class
+                functions.append(fn_item)
+                if parent_class is None and not child.name.startswith("_"):
+                    exports.append({"name": child.name, "kind": "function", "line": child.lineno})
+            elif isinstance(child, ast.ClassDef):
+                classes.append({"name": child.name, "line": child.lineno})
+                if parent_class is None and not child.name.startswith("_"):
+                    exports.append({"name": child.name, "kind": "class", "line": child.lineno})
+                walk_scope(child, parent_class=child.name)
+            else:
+                walk_scope(child, parent_class=parent_class)
+
+    walk_scope(tree)
+
     for n in ast.walk(tree):
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            a = n.args
-            params = [param_name(x) for x in list(a.posonlyargs) + list(a.args)]
-            if a.vararg:
-                params.append("*" + a.vararg.arg)
-            params += [param_name(x) for x in a.kwonlyargs]
-            if a.kwarg:
-                params.append("**" + a.kwarg.arg)
-            functions.append({"name": n.name, "params": params, "line": n.lineno, "async": isinstance(n, ast.AsyncFunctionDef)})
-        elif isinstance(n, ast.ClassDef):
-            classes.append({"name": n.name, "line": n.lineno})
-        elif isinstance(n, ast.Import):
+        if isinstance(n, ast.Import):
             for a in n.names:
                 imports.append({"name": a.asname or a.name, "source": a.name, "line": n.lineno})
         elif isinstance(n, ast.ImportFrom):
             module = n.module or ("." * (n.level or 1))
             for a in n.names:
                 imports.append({"name": a.asname or a.name, "source": module, "line": n.lineno})
-    # Python has no JS-style `export`; module-level public (non "_"-prefixed) defs stand in for it.
-    for n in (tree.body if isinstance(tree, ast.Module) else []):
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and not n.name.startswith("_"):
-            exports.append({"name": n.name, "kind": "class" if isinstance(n, ast.ClassDef) else "function", "line": n.lineno})
+
     return {"functions": functions, "classes": classes, "imports": imports, "exports": exports}
 
 
@@ -166,7 +192,7 @@ def analyze(payload):
         return {"ok": False, "strength": "ast", "error": str(e)}
     node_count = sum(1 for _ in ast.walk(tree))
     if node_count > MAX_NODES:
-        return {"ok": False, "error": "AST node count exceeds safety limit"}
+        return {"ok": False, "strength": "ast", "error": "AST node count exceeds safety limit"}
     return {
         "ok": True,
         "strength": "ast",
@@ -193,9 +219,21 @@ try:
     class handler(BaseHTTPRequestHandler):  # noqa: N801 - Vercel's Python runtime requires this exact name
         """Vercel Python serverless entrypoint for POST /api/python-ast."""
 
+        def do_OPTIONS(self):
+            self.send_response(204)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+            self.send_header("Access-Control-Max-Age", "86400")
+            self.end_headers()
+
         def do_POST(self):
             try:
                 length = int(self.headers.get("Content-Length", 0))
+                if length > 10 * 1024 * 1024:
+                    self.send_response(413)
+                    self.end_headers()
+                    return
                 raw = self.rfile.read(length) if length else b"{}"
                 req = json.loads(raw or b"{}")
                 result = analyze(req)
@@ -207,6 +245,7 @@ try:
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(body)
 
@@ -215,6 +254,7 @@ try:
             self.send_response(405)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(body)
 
