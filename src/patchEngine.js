@@ -478,7 +478,8 @@ export function verifyUntouched(original, patched, patches, appliedResults, opti
   let current=String(original ?? ""), regions=[];
   for(let i=0;i<patches.length;i++){
     const a=analyzePatch(current,patches[i],options.mode||MATCH_MODES.EXACT_UNIQUE);
-    if(!["safe","review"].includes(a.status)) return {ok:false,reason:"untouched-reanalysis-failed",regions};
+    const allowed = a.status === "safe" || (a.status === "review" && options.allowReviewApply === true);
+    if(!allowed) return {ok:false,reason:"untouched-reanalysis-failed",regions};
     const next=applyOne(current,a), replacement=replacementForAnalysis(current,a);
     const beforePrefix=current.slice(0,a.start), beforeSuffix=current.slice(a.end);
     const afterPrefix=next.slice(0,a.start), afterSuffix=next.slice(a.start+replacement.length);
@@ -600,14 +601,16 @@ export async function fetchPythonAst(code, fileName = "file.py") {
       const input = JSON.stringify({ code: source, file_name: String(fileName || "file.py") });
       const childProcess = process.getBuiltinModule?.("node:child_process");
       if (!childProcess?.spawn) return { ok:false, unavailable:true, error:"Node child_process builtin is unavailable." };
+      const pythonCmd = process.env?.PYTHON_BIN || (process.platform === "win32" ? "python" : "python3");
       const result = await new Promise((resolve) => {
-        const child = childProcess['spawn']("python3", [PY_AST], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+        const child = childProcess['spawn'](pythonCmd, [PY_AST], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
         let stdout = "", stderr = "", settled = false;
         const finish = (value) => { if (!settled) { settled = true; resolve(value); } };
         const timer = setTimeout(() => { child.kill("SIGKILL"); finish({ ok:false, unavailable:true, error:"Python AST helper timed out." }); }, 30_000);
         child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");
         child.stdout.on("data", chunk => { stdout += chunk; if (Buffer.byteLength(stdout) > 8 * 1024 * 1024) { child.kill("SIGKILL"); finish({ ok:false, unavailable:true, error:"Python AST response exceeded safety limit." }); } });
         child.stderr.on("data", chunk => { stderr += chunk; if (Buffer.byteLength(stderr) > 1 * 1024 * 1024) child.kill("SIGKILL"); });
+        child.stdin.on("error", () => {});
         child.on("error", error => { clearTimeout(timer); finish({ ok:false, unavailable:true, error:error?.message || "Python executable unavailable." }); });
         child.on("close", code => { clearTimeout(timer); if (settled) return; if (code !== 0) return finish({ ok:false, unavailable:true, error:(stderr || stdout || `Python AST helper exited with ${code}.`).trim() }); try { finish(JSON.parse(stdout)); } catch { finish({ ok:false, unavailable:true, error:"Python AST helper returned invalid JSON." }); } });
         child.stdin.end(input);
@@ -625,7 +628,7 @@ export async function fetchPythonAst(code, fileName = "file.py") {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: source, file_name: String(fileName || "file.py") }),
     });
-    if (!response.ok) return { ok:false, unavailable:true, error:`Python AST service أعاد HTTP ${response.status}.` };
+    if (!response.ok && response.status !== 422) return { ok:false, unavailable:true, error:`Python AST service أعاد HTTP ${response.status}.` };
     const result = await response.json();
     if (!result || typeof result !== "object") return { ok:false, unavailable:true, error:"استجابة غير صالحة من Python AST service." };
     return result;
