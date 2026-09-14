@@ -48,7 +48,22 @@ export default function CodePatcher(){
    } else {
      data=await new Promise((resolve,reject)=>{const w=new Worker(new URL('./patchWorker.js',import.meta.url),{type:'module'});const id=`v15-${Date.now()}`;w.onmessage=e=>{if(e.data.id===id){w.terminate();resolve(e.data)}};w.onerror=e=>{w.terminate();reject(e)};w.postMessage({id,original:f.content,patchText:f.patchText,fileName:f.fileName,fileType,mode:MATCH_MODES.EXACT_UNIQUE,allowReviewApply:false,reviewApproved})});
    }
-   if(data.ok && (data.prepared || data.committed)){setHistory(h=>[...h,{fileIndex:active,content:f.content,resultBefore:result,approved:data.code}].slice(-20));setFiles(fs=>fs.map((x,i)=>i===active?{...x,content:data.code}:x));setResult(data.code);setAudit(data.audit||null);setAnalysis(analyzeCodeIntelligence(f.fileName,data.code));setStatus({ok:true,message:useServer?'V23: Server Compiler + Patch Core + AST + Security + Integrity gates passed.':'V23: Patch Core + AST + Security + Integrity gates passed.'})}else{setResult(f.content);setAudit(data.audit||null);setAnalysis(null);setStatus({ok:false,message:data.message||'Transaction rejected and rolled back.'})}
+   if(data.ok && (data.prepared || data.committed)){
+     setHistory(h=>[...h,{fileIndex:active,content:f.content,resultBefore:result,approved:data.code}].slice(-20));
+     setFiles(fs=>fs.map((x,i)=>i===active?{...x,content:data.code}:x));
+     setResult(data.code);
+     setAudit(data.audit||null);
+     setAnalysis(analyzeCodeIntelligence(f.fileName,data.code));
+     const strengthMsg = data.validation?.strength === 'structural' 
+       ? ' (⚠️ وضع التحقق البنيوي الاحتياطي - خادم المترجم غير متصل).' 
+       : '';
+     setStatus({ok:true,message:(useServer?'V23: Server Compiler + Patch Core + AST + Security + Integrity gates passed.':'V23: Patch Core + AST + Security + Integrity gates passed.') + strengthMsg});
+   }else{
+     setResult(f.content);
+     setAudit(data.audit||null);
+     setAnalysis(null);
+     setStatus({ok:false,message:data.message||'Transaction rejected and rolled back.'});
+   }
  }catch(e){setStatus({ok:false,message:e.message||'Execution failure'})}finally{setBusy(false)}};
  const analyze=()=>{const a=analyzeCodeIntelligence(f.fileName,result||f.content);setAnalysis(a);setView('analysis');};
  const projectAnalyze=()=>{setProjectAnalysis(analyzeProject(files));setView('project')};
