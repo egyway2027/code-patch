@@ -79,7 +79,17 @@ export function analyzeCrossFileImpact(beforeFiles=[],afterFiles=[]){
   }
   const cycleChanged=JSON.stringify(beforeGraph.cycles)!==JSON.stringify(afterGraph.cycles);
   if(cycleChanged&&afterGraph.cycles.length)impact.push({severity:'medium',kind:'dependency-cycle',cycles:afterGraph.cycles,reason:'Dependency cycle topology changed after the transaction.'});
-  const unique=impact.filter((x,i,a)=>i===a.findIndex(y=>JSON.stringify([y.consumer,y.provider,y.symbol,y.kind,y.distance])===JSON.stringify([x.consumer,x.provider,x.symbol,x.kind,x.distance])));
+  
+  const seenImpact = new Set();
+  const unique = [];
+  for (const x of impact) {
+    const k = `${x.consumer}|${x.provider}|${x.symbol}|${x.kind}|${x.distance}`;
+    if (!seenImpact.has(k)) {
+      seenImpact.add(k);
+      unique.push(x);
+    }
+  }
+
   const breaking=unique.filter(x=>x.severity==='high'),warnings=unique.filter(x=>x.severity!=='high');
   return {ok:breaking.length===0,breaking,warnings,changes,beforeGraph,afterGraph,symbolIndex:afterIndex,summary:{changedFiles:changes.length,breaking:breaking.length,warnings:warnings.length,cycles:afterGraph.cycles.length,directImpacts:unique.filter(x=>x.distance===1).length,transitiveImpacts:unique.filter(x=>x.distance>1).length}};
 }
