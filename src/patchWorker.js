@@ -51,7 +51,7 @@ self.onmessage = async (event) => {
     }
 
     checkpoint();
-    const untouched = verifyUntouched(source, applied.code, parsed.blocks, applied.results, { mode });
+    const untouched = verifyUntouched(source, applied.code, parsed.blocks, applied.results, { mode, allowReviewApply: allowReviewApply === true });
     if (!untouched.ok) {
       return fail('فشل التحقق من سلامة الأجزاء غير الملموسة؛ تم إلغاء العملية لحماية الكود.', {
         parsed, applied: { ...applied, code: source, rolledBack: true, reason: untouched.reason }, code: source,
