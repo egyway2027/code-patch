@@ -23,6 +23,9 @@ function extractDiagnostic(raw){
   };
 }
 function clangAst(code,fileName,language){
+  if (/^\s*#\s*include\s*["<]\s*(\/|\.\.[\/\\])/m.test(code)) {
+    return fail(language, "security-gate", "رفض أمني: تضمين مسارات مطلقة أو صاعدة غير مسموح به.");
+  }
   const hasClang=exists(language==="c"?"clang":"clang++");
   const compiler=language==="c"?(hasClang?"clang":exists("gcc")?"gcc":null):(hasClang?"clang++":exists("g++")?"g++":null);
   if(!compiler)return fail(language,compiler||"clang",`${language.toUpperCase()} compiler unavailable`,{unavailable:true});
