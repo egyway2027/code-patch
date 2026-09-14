@@ -542,8 +542,22 @@ function babelPluginsFor(type) {
  * Parse only: the AST is data, never traversed into executable code, never invoked.
  */
 export function parseJsAst(code, type) {
+  const s = String(code ?? "");
+  let depth = 0, maxDepth = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === '(' || c === '[' || c === '{') {
+      depth++;
+      if (depth > maxDepth) maxDepth = depth;
+    } else if (c === ')' || c === ']' || c === '}') {
+      depth--;
+    }
+  }
+  if (maxDepth > 200) {
+    return { ast: null, error: new Error(`تداخل عميق للأقواس (${maxDepth} مستوى) يتجاوز الحد الآمن للتحليل المباشر.`) };
+  }
   try {
-    return { ast: babelParse(String(code ?? ""), { sourceType: "unambiguous", plugins: babelPluginsFor(type), errorRecovery: false }), error: null };
+    return { ast: babelParse(s, { sourceType: "unambiguous", plugins: babelPluginsFor(type), errorRecovery: false }), error: null };
   } catch (error) {
     return { ast: null, error };
   }
