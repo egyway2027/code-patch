@@ -161,12 +161,14 @@ async function parseJavaScript(code, fileName = "file.js") {
   }
 }
 
+const PYTHON_CMD = process.env.PYTHON_BIN || (process.platform === "win32" ? "python" : "python3");
+
 function parsePython(code, fileName = "file.py") {
   if (!fs.existsSync(PY_AST)) {
     return { ok: false, language: "python", error: "Python AST service is missing" };
   }
   try {
-    const result = cp.spawnSync("python3", [PY_AST], {
+    const result = cp.spawnSync(PYTHON_CMD, [PY_AST], {
       input: JSON.stringify({ code, file_name: fileName }),
       encoding: "utf8",
       timeout: 30000,
