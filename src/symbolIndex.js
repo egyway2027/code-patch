@@ -27,7 +27,6 @@ function add(map, code, name, kind, i, exported = false, signature = '', source 
 }
 function paramText(node) { return node?.type === 'Identifier' ? node.name : '<complex>'; }
 function nodeOffset(node) { return Number.isInteger(node?.start) ? node.start : 0; }
-function declarationExported(node, parent) { return !!(parent?.type === 'ExportNamedDeclaration' || parent?.type === 'ExportDefaultDeclaration'); }
 
 function parseJsSymbols(fileName, code) {
   const s = String(code ?? ''), map = new Map();
