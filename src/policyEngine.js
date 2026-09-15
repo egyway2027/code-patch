@@ -1,4 +1,4 @@
-<<<<<<< SEARCH [PATCH: enforce-minimum-security-policy]
+[PATCH: enforce-minimum-security-policy]
 export function normalizePolicy(input={}) {
   const out = {};
   for (const section of Object.keys(DEFAULT_POLICY)) {
