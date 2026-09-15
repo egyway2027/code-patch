@@ -35,6 +35,7 @@ this service's shape is deliberately kept consistent with.
 """
 import ast
 import json
+import os
 import sys
 
 MAX_SOURCE = 2_000_000
@@ -111,8 +112,9 @@ def security_findings(tree):
                 has_loader = len(node.args) >= 2 or any(kw.arg == "Loader" for kw in node.keywords or [])
                 if not has_loader:
                     push(node, "PY-YAML-UNSAFE-LOAD", "high", "استدعاء yaml.load() بدون Loader صريح؛ استخدم yaml.safe_load().")
-            elif fname in ("rmtree",) and dotted and dotted.startswith("shutil"):
-                push(node, "FS-DESTRUCTIVE", "high", "استدعاء shutil.rmtree(): حذف متكرر من نظام الملفات.")
+            elif (dotted in ("shutil.rmtree", "os.remove", "os.unlink", "os.rmdir") or
+                  (isinstance(node.func, ast.Name) and node.func.id in ("rmtree", "remove", "unlink", "rmdir"))):
+                push(node, "FS-DESTRUCTIVE", "high", f"استدعاء {dotted or fname}(): حذف من نظام الملفات.")
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
             for t in targets:
@@ -170,7 +172,8 @@ def snapshot(tree):
             for a in n.names:
                 imports.append({"name": a.asname or a.name, "source": a.name, "line": n.lineno})
         elif isinstance(n, ast.ImportFrom):
-            module = n.module or ("." * (n.level or 1))
+            prefix = "." * (n.level or 0)
+            module = f"{prefix}{n.module}" if n.module else prefix
             for a in n.names:
                 imports.append({"name": a.asname or a.name, "source": module, "line": n.lineno})
 
@@ -206,6 +209,12 @@ def analyze(payload):
 
 def main_cli():
     """stdin/stdout entrypoint used by local dev and tests/python_ast_test.py."""
+    if hasattr(sys.stdin, "reconfigure"):
+        try:
+            sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
     try:
         req = json.loads(sys.stdin.read() or "{}")
     except Exception as e:
@@ -222,7 +231,13 @@ try:
 
         def _set_cors_headers(self):
             origin = self.headers.get("Origin", "")
-            if origin and (origin.endswith(".vercel.app") or origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:")):
+            if not origin:
+                return
+            allowed_env = os.environ.get("ALLOWED_ORIGINS", "")
+            allowed_list = [o.strip() for o in allowed_env.split(",") if o.strip()]
+            is_local = origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:")
+            is_allowed = is_local or (origin in allowed_list) or (not allowed_list and origin.endswith(".vercel.app"))
+            if is_allowed:
                 self.send_header("Access-Control-Allow-Origin", origin)
                 self.send_header("Vary", "Origin")
 
@@ -261,8 +276,8 @@ try:
                 self.wfile.write(err_body)
                 return
 
-            if length > 1024 * 1024:
-                err_body = json.dumps({"ok": False, "error": "Payload Too Large: maximum 1MB"}).encode("utf-8")
+            if length > 4 * 1024 * 1024:
+                err_body = json.dumps({"ok": False, "error": "Payload Too Large: maximum 4MB"}).encode("utf-8")
                 self.send_response(413)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(err_body)))
