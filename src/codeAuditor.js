@@ -28,31 +28,50 @@ export const AUDITOR_VERSION = "11.0.0";
 const MAX_FINDINGS = 300;
 
 function lineOf(text, index) {
-  const idx = Number.isFinite(index) ? Math.max(0, index) : 0;
-  return String(text ?? "").slice(0, idx).split(/\r\n|\r|\n/).length;
+  const str = String(text ?? "");
+  const limit = Math.min(Number.isFinite(index) ? Math.max(0, index) : 0, str.length);
+  let line = 1;
+  for (let i = 0; i < limit; i++) {
+    const ch = str.charCodeAt(i);
+    if (ch === 10) line++;
+    else if (ch === 13) {
+      line++;
+      if (i + 1 < limit && str.charCodeAt(i + 1) === 10) i++;
+    }
+  }
+  return line;
 }
 
 // Generic structural walk over a Babel AST: recurses into any own property that looks
 // like a node (has a string `.type`) or an array of such, skipping position bookkeeping
 // and comment fields. This intentionally avoids adding @babel/traverse as a dependency —
 // the tool already ships @babel/parser for validation and this reuses that AST as-is.
-function walk(node, visit, seen = new Set()) {
-  if (!node || typeof node !== "object" || seen.has(node)) return;
-  if (Array.isArray(node)) { for (const item of node) walk(item, visit, seen); return; }
-  if (typeof node.type !== "string") return;
-  seen.add(node);
-  visit(node);
-  for (const key of Object.keys(node)) {
-    if (key === "loc" || key === "start" || key === "end" || key === "range" ||
-        key === "leadingComments" || key === "trailingComments" || key === "innerComments") continue;
-    const value = node[key];
-    if (value && typeof value === "object") walk(value, visit, seen);
+function walk(root, visit) {
+  if (!root || typeof root !== "object") return;
+  const stack = [root];
+  const seen = new Set();
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (!node || typeof node !== "object" || seen.has(node)) continue;
+    if (Array.isArray(node)) {
+      for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
+      continue;
+    }
+    if (typeof node.type !== "string") continue;
+    seen.add(node);
+    if (visit(node) === false) return;
+    for (const key of Object.keys(node)) {
+      if (key === "loc" || key === "start" || key === "end" || key === "range" ||
+          key === "leadingComments" || key === "trailingComments" || key === "innerComments") continue;
+      const value = node[key];
+      if (value && typeof value === "object") stack.push(value);
+    }
   }
 }
 
 const PLACEHOLDER_VALUE = /\b(test|example|sample|dummy|fake|placeholder|changeme|xxxx|your[_-]?key|not[_-]?real)\b/i;
 const SECRET_KEY_NAME = /^(password|passwd|secret|api[_-]?key|apikey|access[_-]?token|auth[_-]?token|token)$/i;
-const SQL_KEYWORD = /\b(select|insert|update|delete)\b/i;
+const SQL_QUERY_PATTERN = /\b(select\s+[\s\S]+?\s+from|insert\s+into|update\s+[\s\S]+?\s+set|delete\s+from)\b/i;
 const COMMAND_EXEC_NAMES = new Set(["exec", "execSync", "spawn", "spawnSync"]);
 const FS_DESTRUCTIVE_NAMES = new Set(["rmSync", "unlinkSync", "rmdirSync"]);
 
@@ -164,6 +183,23 @@ function scanNonJsSecurity(source, language) {
   return findings;
 }
 
+function isCommandExecCall(callee) {
+  if (!callee) return null;
+  if (callee.type === "Identifier" && COMMAND_EXEC_NAMES.has(callee.name)) return callee.name;
+  if (callee.type === "MemberExpression" && !callee.computed && callee.property?.type === "Identifier") {
+    const name = callee.property.name;
+    if (!COMMAND_EXEC_NAMES.has(name)) return null;
+    if (name === "exec" || name === "execSync") {
+      const obj = callee.object;
+      const objName = obj?.type === "Identifier" ? obj.name : null;
+      if (objName && /^(child_process|childProcess|cp)$/i.test(objName)) return name;
+      return null;
+    }
+    return name;
+  }
+  return null;
+}
+
 function calleeName(node) {
   if (!node) return null;
   if (node.type === "Identifier") return node.name;
@@ -177,14 +213,16 @@ function scanAst(ast, source) {
   const push = (node, f) => { if (findings.length < MAX_FINDINGS) findings.push({ ...f, line: lineOf(source, node.start) }); };
 
   walk(ast.program, (node) => {
+    if (findings.length >= MAX_FINDINGS) return false;
     if (node.type === "CallExpression") {
       const name = calleeName(node.callee);
+      const cmdName = isCommandExecCall(node.callee);
       if (node.callee.type === "Identifier" && node.callee.name === "eval") {
         push(node, { code: "JS-EVAL", severity: "critical", confidence: "certain", message: "استدعاء eval() فعلي: تنفيذ كود ديناميكي غير موثوق." });
       } else if (node.callee.type === "Identifier" && node.callee.name === "Function") {
         push(node, { code: "JS-NEW-FUNCTION", severity: "critical", confidence: "certain", message: "استدعاء Function(): إنشاء وتنفيذ كود ديناميكي." });
-      } else if (name && COMMAND_EXEC_NAMES.has(name)) {
-        push(node, { code: "NODE-COMMAND", severity: "high", confidence: "high", message: `استدعاء ${name}(): تنفيذ أمر نظام.` });
+      } else if (cmdName) {
+        push(node, { code: "NODE-COMMAND", severity: "high", confidence: "high", message: `استدعاء ${cmdName}(): تنفيذ أمر نظام.` });
       } else if (name && FS_DESTRUCTIVE_NAMES.has(name)) {
         push(node, { code: "FS-DESTRUCTIVE", severity: "high", confidence: "high", message: `استدعاء ${name}(): حذف من نظام الملفات.` });
       }
@@ -215,11 +253,11 @@ function scanAst(ast, source) {
     } else if (node.type === "BinaryExpression" && node.operator === "+") {
       const lit = node.left?.type === "StringLiteral" ? node.left : node.right?.type === "StringLiteral" ? node.right : null;
       const other = lit === node.left ? node.right : node.left;
-      if (lit && SQL_KEYWORD.test(lit.value) && other && other.type !== "StringLiteral") {
+      if (lit && SQL_QUERY_PATTERN.test(lit.value) && other && other.type !== "StringLiteral") {
         push(node, { code: "SQL-CONCAT", severity: "high", confidence: "medium", message: "تركيب استعلام SQL بجمع نص + متغيّر؛ استخدم parameterized queries." });
       }
     } else if (node.type === "TemplateLiteral" && node.expressions?.length > 0 &&
-               node.quasis?.some(q => SQL_KEYWORD.test(q.value?.raw || ""))) {
+               node.quasis?.some(q => SQL_QUERY_PATTERN.test(q.value?.raw || ""))) {
       push(node, { code: "SQL-CONCAT", severity: "high", confidence: "medium", message: "استعلام SQL داخل template literal مع تضمين متغيّرات؛ استخدم parameterized queries." });
     }
   });
