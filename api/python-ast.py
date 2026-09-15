@@ -187,9 +187,10 @@ def analyze(payload):
     try:
         tree = ast.parse(code, filename=file_name, mode="exec", type_comments=True)
     except SyntaxError as e:
-        return {"ok": False, "strength": "ast", "error": str(e), "line": e.lineno, "column": (e.offset or 1)}
-    except Exception as e:  # pragma: no cover - defensive, ast.parse rarely raises other errors
-        return {"ok": False, "strength": "ast", "error": str(e)}
+        msg = getattr(e, "msg", "Syntax error")
+        return {"ok": False, "strength": "ast", "error": msg, "line": e.lineno, "column": (e.offset or 1)}
+    except Exception:
+        return {"ok": False, "strength": "ast", "error": "Internal syntax analysis failure"}
     node_count = sum(1 for _ in ast.walk(tree))
     if node_count > MAX_NODES:
         return {"ok": False, "strength": "ast", "error": "AST node count exceeds safety limit"}
@@ -219,42 +220,83 @@ try:
     class handler(BaseHTTPRequestHandler):  # noqa: N801 - Vercel's Python runtime requires this exact name
         """Vercel Python serverless entrypoint for POST /api/python-ast."""
 
+        def _set_cors_headers(self):
+            origin = self.headers.get("Origin", "")
+            if origin and (origin.endswith(".vercel.app") or origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:")):
+                self.send_header("Access-Control-Allow-Origin", origin)
+                self.send_header("Vary", "Origin")
+
         def do_OPTIONS(self):
             self.send_response(204)
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self._set_cors_headers()
+            self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
             self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
             self.send_header("Access-Control-Max-Age", "86400")
             self.end_headers()
 
         def do_POST(self):
+            ctype = self.headers.get("Content-Type", "")
+            if not ctype.lower().startswith("application/json"):
+                err_body = json.dumps({"ok": False, "error": "Unsupported Media Type: application/json required"}).encode("utf-8")
+                self.send_response(415)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(err_body)))
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(err_body)
+                return
+
             try:
                 length = int(self.headers.get("Content-Length", 0))
-                if length > 10 * 1024 * 1024:
-                    self.send_response(413)
-                    self.end_headers()
-                    return
-                raw = self.rfile.read(length) if length else b"{}"
+            except (TypeError, ValueError):
+                length = 0
+
+            if length <= 0:
+                err_body = json.dumps({"ok": False, "error": "Empty request body"}).encode("utf-8")
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(err_body)))
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(err_body)
+                return
+
+            if length > 1024 * 1024:
+                err_body = json.dumps({"ok": False, "error": "Payload Too Large: maximum 1MB"}).encode("utf-8")
+                self.send_response(413)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(err_body)))
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(err_body)
+                return
+
+            try:
+                raw = self.rfile.read(length)
                 req = json.loads(raw or b"{}")
                 result = analyze(req)
                 status = 200
-            except Exception as e:
-                result = {"ok": False, "error": f"malformed request: {e}"}
+            except json.JSONDecodeError:
+                result = {"ok": False, "error": "Malformed JSON payload"}
                 status = 400
+            except Exception:
+                result = {"ok": False, "error": "Internal processing error"}
+                status = 500
+
             body = json.dumps(result, ensure_ascii=False).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self._set_cors_headers()
             self.end_headers()
             self.wfile.write(body)
 
         def do_GET(self):
-            body = json.dumps({"ok": False, "error": "use POST with a JSON body: {\"code\": \"...\"}"}).encode("utf-8")
-            self.send_response(405)
+            body = json.dumps({"status": "healthy", "service": "python-ast", "version": "23.1.0"}).encode("utf-8")
+            self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self._set_cors_headers()
             self.end_headers()
             self.wfile.write(body)
 
