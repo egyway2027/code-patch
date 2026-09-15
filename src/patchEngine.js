@@ -744,8 +744,8 @@ export async function validatePython(code, fileName = "file.py") {
     return {
       ok: true,
       strength: "structural-degraded",
-      message: "⚠️ وضع احتياطي: تم الفحص بنيوياً فقط لتعذر الاتصال بمحلل AST السحابي.",
-      findings: [{ code: "PY-AST-UNAVAILABLE", severity: "review", message: "تحليل AST السحابي غير متاح؛ يلزم موافقة المراجعة." }]
+      message: "⚠️ وضع احتياطي: تم التحقق بنيوياً فقط لتعذر الوصول لمحلل AST السحابي.",
+      findings: [{ code: "PY-AST-DEGRADED", severity: "review", message: "تحليل AST السحابي غير متاح؛ يتطلب موافقة المراجعة للاعتماد." }]
     };
   }
   if (result.ok === false) {
