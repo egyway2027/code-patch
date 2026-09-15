@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  build: { target: 'es2022' },
-  esbuild: { target: 'es2022' },
+  build: { target: 'es2022', sourcemap: false, minify: 'esbuild' },
+  esbuild: { target: 'es2022', drop: (process.env.NODE_ENV === 'production' || process.argv.includes('build')) ? ['console', 'debugger'] : [] },
   worker: { format: 'es' },
   server: {
     proxy: {
