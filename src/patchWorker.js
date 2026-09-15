@@ -10,7 +10,11 @@ const cancelled = new Set();
 self.onmessage = async (event) => {
   const payload = event.data || {};
   const { id, original, patchText, fileName, fileType, mode, allowReviewApply, reviewApproved, policy } = payload;
-  if (payload.type === 'cancel') { cancelled.add(id); return; }
+  if (payload.type === 'cancel') {
+    cancelled.add(id);
+    setTimeout(() => cancelled.delete(id), 30_000);
+    return;
+  }
   const fail = (message, extra = {}) => self.postMessage({ id, version: VERSION, ok: false, committed: false, message, ...extra });
   const isCancelled = () => cancelled.has(id);
   const checkpoint = () => { if (isCancelled()) throw new Error('CANCELLED'); };
@@ -37,7 +41,7 @@ self.onmessage = async (event) => {
       return self.postMessage({ id, version: VERSION, ok: false, committed: false,
         message: 'تم رفض العملية بالكامل: تعذر إثبات أمان جميع الـPatches.', parsed,
         applied: { ...applied, code: source, rolledBack: true }, code: source, validation: null, diff: [],
-        integrity: { ok: true, originalHash, resultHash: originalHash, rolledBack: true },
+        integrity: { ok: false, originalHash, resultHash: originalHash, rolledBack: true },
       });
     }
 
@@ -63,6 +67,14 @@ self.onmessage = async (event) => {
     const type = fileType === 'auto' ? detectFileType(fileName) : fileType;
     const validation = await validateCode(applied.code, type, fileName);
     checkpoint();
+    if (!validation.ok) {
+      return self.postMessage({ id, version: VERSION, ok: false, committed: false,
+        message: 'تم رفض النتيجة لأن Validation فشل. الملف الأصلي محفوظ كما هو.', parsed,
+        applied: { ...applied, code: source, rolledBack: true, reason: 'post-validation-failure' }, code: source,
+        validation, diff: [], integrity: { ok: false, originalHash, resultHash: null, reason: 'post-validation-failure' },
+      });
+    }
+
     const audit = await auditCodeChange({ before: source, after: applied.code, fileName, fileType: type, strict: false });
     checkpoint();
     const p = normalizePolicy(policy);
@@ -73,13 +85,6 @@ self.onmessage = async (event) => {
         message: 'تم إيقاف الاعتماد بانتظار الموافقة على نتائج المراجعة الأمنية.', parsed,
         applied: { ...applied, code: source, rolledBack: true, reason: 'security-policy-blocked' }, code: source,
         validation, audit, securityPolicy, diff: [], integrity: { ok: false, originalHash, resultHash: null, reason: 'security-policy-blocked' },
-      });
-    }
-    if (!validation.ok) {
-      return self.postMessage({ id, version: VERSION, ok: false, committed: false,
-        message: 'تم رفض النتيجة لأن Validation فشل. الملف الأصلي محفوظ كما هو.', parsed,
-        applied: { ...applied, code: source, rolledBack: true, reason: 'post-validation-failure' }, code: source,
-        validation, diff: [], integrity: { ok: false, originalHash, resultHash: null, reason: 'post-validation-failure' },
       });
     }
 
@@ -105,7 +110,9 @@ self.onmessage = async (event) => {
       integrity: { ...integrity, ok: true, appliedCount: verification.appliedCount }, diff,
     });
   } catch (error) {
-    if (error?.message === 'CANCELLED') return;
+    if (error?.message === 'CANCELLED') {
+      return self.postMessage({ id, version: VERSION, ok: false, committed: false, cancelled: true, message: 'تم إلغاء العملية.' });
+    }
     fail(`حدث خطأ داخلي؛ تم رفض العملية بالكامل: ${error?.message || error}`, { fatal: true, reason: 'internal-error' });
   } finally {
     cancelled.delete(id);
