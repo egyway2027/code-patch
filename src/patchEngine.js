@@ -149,12 +149,12 @@ function canonicalLines(text, normalized = false) {
 }
 
 function countMatchesByLines(source, search, normalized = false) {
-  const src = canonicalLines(source, normalized);
+  const srcLines = splitLines(source);
+  const src = srcLines.map(x => normalized ? normalizeLine(x.text) : x.text);
   const needle = canonicalLines(search, normalized);
   while (needle.length && needle[needle.length - 1] === "") needle.pop();
   if (!needle.length || needle.every(x => x === "")) return [];
 
-  const srcLines = splitLines(source);
   const hits = [];
   for (let i = 0; i <= src.length - needle.length; i++) {
     let ok = true;
@@ -314,15 +314,14 @@ export function analyzePatch(currentCode, patch, mode = MATCH_MODES.EXACT_UNIQUE
     return { status: "ambiguous", level: "exact", matches: exact.length, locations: exact.slice(0, LIMITS.maxMatchesReported).map(x => locate(currentCode, x.start)), patch, reason: "multiple-exact-matches" };
   }
 
-  if (mode === MATCH_MODES.NORMALIZED_UNIQUE || mode === MATCH_MODES.REVIEW) {
-    const normalized = normalizedMatches(currentCode, search);
-    if (normalized.length === 1) {
-      const hit = normalized[0];
-      return { status: mode === MATCH_MODES.NORMALIZED_UNIQUE ? "safe" : "review", level: "normalized", start: hit.start, end: hit.end, line: locate(currentCode, hit.start), matches: 1, patch };
-    }
-    if (normalized.length > 1) {
-      return { status: "ambiguous", level: "normalized", matches: normalized.length, locations: normalized.slice(0, LIMITS.maxMatchesReported).map(x => locate(currentCode, x.start)), patch, reason: "multiple-normalized-matches" };
-    }
+  const normalized = normalizedMatches(currentCode, search);
+  if (normalized.length === 1) {
+    const hit = normalized[0];
+    const status = mode === MATCH_MODES.NORMALIZED_UNIQUE ? "safe" : "review";
+    return { status, level: "normalized", start: hit.start, end: hit.end, line: locate(currentCode, hit.start), matches: 1, patch };
+  }
+  if (normalized.length > 1) {
+    return { status: "ambiguous", level: "normalized", matches: normalized.length, locations: normalized.slice(0, LIMITS.maxMatchesReported).map(x => locate(currentCode, x.start)), patch, reason: "multiple-normalized-matches" };
   }
   return { status: "not-found", patch, reason: "search-not-found" };
 }
@@ -544,8 +543,20 @@ function babelPluginsFor(type) {
 export function parseJsAst(code, type) {
   const s = String(code ?? "");
   let depth = 0, maxDepth = 0;
+  let quote = null, escaped = false, lineComment = false, blockComment = false;
   for (let i = 0; i < s.length; i++) {
-    const c = s[i];
+    const c = s[i], n = s[i + 1];
+    if (lineComment) { if (c === "\n" || c === "\r") lineComment = false; continue; }
+    if (blockComment) { if (c === "*" && n === "/") { blockComment = false; i++; } continue; }
+    if (quote) {
+      if (escaped) { escaped = false; continue; }
+      if (c === "\\") { escaped = true; continue; }
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === "/" && n === "/") { lineComment = true; i++; continue; }
+    if (c === "/" && n === "*") { blockComment = true; i++; continue; }
+    if (c === "'" || c === '"' || c === "`") { quote = c; continue; }
     if (c === '(' || c === '[' || c === '{') {
       depth++;
       if (depth > maxDepth) maxDepth = depth;
@@ -618,8 +629,9 @@ function validatePythonStructural(code) {
       let closed = false;
       while (i < len) {
         if (s[i] === "\\" && i + 1 < len) {
-          if (s[i + 1] === "\n") { line++; col = 1; } else { col += 2; }
-          i += 2;
+          if (s[i + 1] === "\r" && s[i + 2] === "\n") { line++; col = 1; i += 3; }
+          else if (s[i + 1] === "\n" || s[i + 1] === "\r") { line++; col = 1; i += 2; }
+          else { col += 2; i += 2; }
         } else if (s[i] === q) {
           closed = true;
           i++; col++;
@@ -793,7 +805,11 @@ const HTML_VOID_ELEMENTS = new Set([
 ]);
 
 function validateMarkup(code, xml = false) {
-  const s = String(code ?? "");
+  let s = String(code ?? "");
+  if (!xml) {
+    s = s.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gi, (m, body) => `<script>${" ".repeat(body.length)}</script>`)
+         .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (m, body) => `<style>${" ".repeat(body.length)}</style>`);
+  }
   const stack = [];
   const tokenRe = /<!--[\s\S]*?-->|<\/?[A-Za-z][^>]*?>/g;
   let m;
