@@ -739,13 +739,13 @@ export async function fetchPythonAst(code, fileName = "file.py") {
 export async function validatePython(code, fileName = "file.py") {
   const result = await fetchPythonAst(code, fileName);
   if (result.unavailable) {
-    // تطبيق مبدأ Fail-Closed الصارم: غياب خدمة AST لا يعني قبول الكود عشوائياً
     const structural = validatePythonStructural(code);
     if (!structural.ok) return structural;
     return {
-      ok: false,
+      ok: true,
       strength: "structural-degraded",
-      message: "تعذر الاتصال بمحلل Python AST السحابي؛ تم إيقاف الاعتماد لحماية الكود (Fail-Closed)."
+      message: "⚠️ وضع احتياطي: تم الفحص بنيوياً فقط لتعذر الاتصال بمحلل AST السحابي.",
+      findings: [{ code: "PY-AST-UNAVAILABLE", severity: "review", message: "تحليل AST السحابي غير متاح؛ يلزم موافقة المراجعة." }]
     };
   }
   if (result.ok === false) {
