@@ -739,7 +739,14 @@ export async function fetchPythonAst(code, fileName = "file.py") {
 export async function validatePython(code, fileName = "file.py") {
   const result = await fetchPythonAst(code, fileName);
   if (result.unavailable) {
-    return validatePythonStructural(code);
+    // تطبيق مبدأ Fail-Closed الصارم: غياب خدمة AST لا يعني قبول الكود عشوائياً
+    const structural = validatePythonStructural(code);
+    if (!structural.ok) return structural;
+    return {
+      ok: false,
+      strength: "structural-degraded",
+      message: "تعذر الاتصال بمحلل Python AST السحابي؛ تم إيقاف الاعتماد لحماية الكود (Fail-Closed)."
+    };
   }
   if (result.ok === false) {
     const loc = result.line ? ` (سطر ${result.line}, عمود ${result.column || 1})` : "";
